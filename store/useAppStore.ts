@@ -31,9 +31,11 @@ interface AppStore {
   userId: string | null;
   onboarded: boolean;
   privacyAccepted: boolean;
+  _hasHydrated: boolean;
   setUserId: (id: string | null) => void;
   setOnboarded: (v: boolean) => void;
   setPrivacyAccepted: () => void;
+  setHasHydrated: (v: boolean) => void;
 
   // ── Profile ────────────────────────────────────────────────────────────────
   profile: UserProfile;
@@ -126,9 +128,11 @@ export const useAppStore = create<AppStore>()(
       userId: null,
       onboarded: false,
       privacyAccepted: false,
+      _hasHydrated: false,
       setUserId: (id) => set({ userId: id }),
       setOnboarded: (v) => set({ onboarded: v }),
       setPrivacyAccepted: () => set({ privacyAccepted: true }),
+      setHasHydrated: (v) => set({ _hasHydrated: v }),
 
       // Profile
       profile: defaultProfile,
@@ -261,9 +265,8 @@ export const useAppStore = create<AppStore>()(
       },
     }),
     {
-      name: "nourishher-store",
+      name: "feaste-store",
       storage: createJSONStorage(() => AsyncStorage),
-      // Don't persist derived functions
       partialize: (state) => ({
         userId: state.userId,
         onboarded: state.onboarded,
@@ -278,7 +281,11 @@ export const useAppStore = create<AppStore>()(
         streak: state.streak,
         likedMeals: state.likedMeals,
         planGroceryItems: state.planGroceryItems,
+        weekPlanData: state.weekPlanData,
       }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     }
   )
 );

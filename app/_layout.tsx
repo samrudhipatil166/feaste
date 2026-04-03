@@ -11,14 +11,14 @@ function AuthGate() {
   const segments = useSegments();
   const setUserId = useAppStore((s) => s.setUserId);
   const onboarded = useAppStore((s) => s.onboarded);
+  const hasHydrated = useAppStore((s) => s._hasHydrated);
 
   useEffect(() => {
-    // Check current session
+    if (!hasHydrated) return; // wait for store to load from storage
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       const inAuthGroup = segments[0] === "(auth)";
-
       if (!session) {
-        // Not logged in → send to login
         if (!inAuthGroup) router.replace("/(auth)/login");
       } else {
         setUserId(session.user.id);
@@ -30,7 +30,6 @@ function AuthGate() {
       }
     });
 
-    // Listen for auth changes
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         if (!session) {
@@ -50,7 +49,7 @@ function AuthGate() {
     return () => {
       listener.subscription.unsubscribe();
     };
-  }, []);
+  }, [hasHydrated]);
 
   return null;
 }

@@ -300,64 +300,79 @@ export default function OnboardingScreen() {
             </View>
           </View>
 
-          {/* Last period date */}
+          {/* Last period date — calendar grid */}
           <View>
             <Text style={styles.label}>When did your last period start?</Text>
-            <View style={styles.datePickerRow}>
-              {/* Day */}
-              <View style={styles.dateColumn}>
-                <Pressable onPress={() => setPeriodDay((d) => { const next = d < daysInMonth ? d + 1 : 1; return next > maxDay ? 1 : next; })} style={styles.dateArrow}>
-                  <Ionicons name="chevron-up" size={16} color={accentColor} />
-                </Pressable>
-                <View style={[styles.dateCell, { borderColor: accentColor }]}>
-                  <Text style={styles.dateCellText}>{String(periodDay).padStart(2, "0")}</Text>
+            {(() => {
+              const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+              const todayMidnight = new Date(todayY, todayM, todayD);
+              // Build 5 weeks back + today = 36 dates
+              const dates: Date[] = Array.from({ length: 36 }, (_, i) => {
+                const d = new Date(todayMidnight);
+                d.setDate(todayMidnight.getDate() - (35 - i));
+                return d;
+              });
+              // Pad start so Mon is first column
+              const firstDow = (dates[0].getDay() + 6) % 7; // 0=Mon
+              const paddedDates: (Date | null)[] = [...Array(firstDow).fill(null), ...dates];
+              const rows: (Date | null)[][] = [];
+              for (let i = 0; i < paddedDates.length; i += 7) rows.push(paddedDates.slice(i, i + 7));
+
+              const selectedDate = new Date(periodYear, periodMonth, periodDay);
+              const isSelected = (d: Date) =>
+                d.getFullYear() === periodYear && d.getMonth() === periodMonth && d.getDate() === periodDay;
+
+              return (
+                <View style={styles.calendarWrap}>
+                  {/* Day-of-week headers */}
+                  <View style={styles.calendarRow}>
+                    {DAY_LABELS.map((l, i) => (
+                      <Text key={i} style={styles.calendarDow}>{l}</Text>
+                    ))}
+                  </View>
+                  {rows.map((row, ri) => (
+                    <View key={ri} style={styles.calendarRow}>
+                      {row.map((d, ci) => {
+                        if (!d) return <View key={ci} style={styles.calendarCell} />;
+                        const sel = isSelected(d);
+                        const isToday = d.getTime() === todayMidnight.getTime();
+                        return (
+                          <Pressable
+                            key={ci}
+                            onPress={() => {
+                              setPeriodDay(d.getDate());
+                              setPeriodMonth(d.getMonth());
+                              setPeriodYear(d.getFullYear());
+                            }}
+                            style={[
+                              styles.calendarCell,
+                              sel && { backgroundColor: accentColor, borderRadius: 8 },
+                              !sel && isToday && { borderWidth: 1, borderColor: `${accentColor}60`, borderRadius: 8 },
+                            ]}
+                          >
+                            <Text style={[
+                              styles.calendarDayText,
+                              sel && { color: "#0a0e1a", fontWeight: "700" },
+                              !sel && isToday && { color: accentColor },
+                            ]}>
+                              {d.getDate()}
+                            </Text>
+                            {d.getDate() === 1 && (
+                              <Text style={[styles.calendarMonthLabel, sel && { color: "#0a0e1a" }]}>
+                                {MONTHS[d.getMonth()]}
+                              </Text>
+                            )}
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  ))}
+                  <Text style={styles.calendarSelected}>
+                    Selected: {String(periodDay).padStart(2, "0")} {MONTHS[periodMonth]} {periodYear} · Cycle day {calcCycleDay()}
+                  </Text>
                 </View>
-                <Pressable onPress={() => setPeriodDay((d) => d > 1 ? d - 1 : maxDay)} style={styles.dateArrow}>
-                  <Ionicons name="chevron-down" size={16} color={accentColor} />
-                </Pressable>
-                <Text style={styles.dateLabel}>DD</Text>
-              </View>
-
-              <Text style={styles.dateSep}>–</Text>
-
-              {/* Month */}
-              <View style={styles.dateColumn}>
-                <Pressable onPress={() => {
-                  const next = (periodMonth + 1) % 12;
-                  if (next > maxMonth) return;
-                  setPeriodMonth(next);
-                  if (periodYear === todayY && next === todayM && periodDay > todayD) setPeriodDay(todayD);
-                }} style={styles.dateArrow}>
-                  <Ionicons name="chevron-up" size={16} color={accentColor} />
-                </Pressable>
-                <View style={[styles.dateCell, { borderColor: accentColor }]}>
-                  <Text style={styles.dateCellText}>{MONTHS[periodMonth]}</Text>
-                </View>
-                <Pressable onPress={() => setPeriodMonth((m) => m > 0 ? m - 1 : 0)} style={styles.dateArrow}>
-                  <Ionicons name="chevron-down" size={16} color={accentColor} />
-                </Pressable>
-                <Text style={styles.dateLabel}>MON</Text>
-              </View>
-
-              <Text style={styles.dateSep}>–</Text>
-
-              {/* Year */}
-              <View style={styles.dateColumn}>
-                <Pressable onPress={() => { if (periodYear < todayY) setPeriodYear((y) => y + 1); }} style={styles.dateArrow}>
-                  <Ionicons name="chevron-up" size={16} color={accentColor} />
-                </Pressable>
-                <View style={[styles.dateCell, { borderColor: accentColor }]}>
-                  <Text style={styles.dateCellText}>{periodYear}</Text>
-                </View>
-                <Pressable onPress={() => setPeriodYear((y) => y - 1)} style={styles.dateArrow}>
-                  <Ionicons name="chevron-down" size={16} color={accentColor} />
-                </Pressable>
-                <Text style={styles.dateLabel}>YYYY</Text>
-              </View>
-            </View>
-            <Text style={{ color: DARK_THEME.textSecondary, fontSize: 12, marginTop: 8 }}>
-              You're on cycle day {calcCycleDay()}
-            </Text>
+              );
+            })()}
           </View>
 
           {/* Flow */}
@@ -833,6 +848,47 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: TYPE.md,
     color: DARK_THEME.textSecondary,
+  },
+  calendarWrap: {
+    backgroundColor: DARK_THEME.cardBg,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: DARK_THEME.borderColor,
+    padding: 10,
+    gap: 2,
+  },
+  calendarRow: {
+    flexDirection: "row",
+  },
+  calendarDow: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 11,
+    color: DARK_THEME.textMuted,
+    paddingVertical: 4,
+    fontWeight: "600",
+  },
+  calendarCell: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 5,
+    minHeight: 36,
+  },
+  calendarDayText: {
+    fontSize: 13,
+    color: DARK_THEME.textPrimary,
+  },
+  calendarMonthLabel: {
+    fontSize: 8,
+    color: DARK_THEME.textMuted,
+    marginTop: 1,
+  },
+  calendarSelected: {
+    fontSize: 12,
+    color: DARK_THEME.textSecondary,
+    textAlign: "center",
+    marginTop: 8,
   },
   macroRow: {
     flexDirection: "row",

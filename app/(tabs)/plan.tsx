@@ -1384,7 +1384,9 @@ export default function PlanScreen() {
 
   const [planView, setPlanView] = useState<"today" | "week">("today");
   const [weekTab, setWeekTab] = useState<"this" | "next">("this");
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const todayDow = new Date().getDay();
+  const todayDefaultIndex = todayDow === 0 ? 6 : todayDow - 1;
+  const [selectedIndex, setSelectedIndex] = useState(todayDefaultIndex);
   const [loggedMeals, setLoggedMeals] = useState<Set<string>>(new Set());
   const [detailMeal, setDetailMeal] = useState<WeekMeal | null>(null);
   const [swapMeal, setSwapMeal] = useState<{ meal: WeekMeal; mealIndex: number } | null>(null);
