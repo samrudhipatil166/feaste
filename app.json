@@ -1,0 +1,70 @@
+{
+  "expo": {
+    "name": "Feaste",
+    "slug": "feaste",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "feaste",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f0a1e"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.feaste.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Feaste uses the camera to analyse your meals and estimate macros.",
+        "NSMicrophoneUsageDescription": "Feaste uses the microphone so you can log meals by voice.",
+        "NSSpeechRecognitionUsageDescription": "Feaste uses speech recognition to transcribe your voice meal logs."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0f0a1e"
+      },
+      "package": "com.feaste.app",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Feaste uses the camera to analyse your meals."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Feaste accesses photos to analyse meal images."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#FBD168"
+        }
+      ],
+      "expo-secure-store",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "newArchEnabled": true
+  }
+}
