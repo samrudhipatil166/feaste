@@ -323,6 +323,31 @@ export default function TodayScreen() {
           />
         </GlowCard>
 
+        {/* Meals today by slot */}
+        <GlowCard style={styles.sectionCard} delay={0.25}>
+          <Text style={styles.cardTitle}>Meals Today</Text>
+          <View style={styles.mealSlots}>
+            {(["breakfast", "lunch", "dinner", "snack"] as const).map((slot) => {
+              const entries = foodLog.filter((e) => e.meal === slot);
+              const slotCal = entries.reduce((s, e) => s + e.calories, 0);
+              const SLOT_EMOJI: Record<string, string> = { breakfast: "🌅", lunch: "☀️", dinner: "🌙", snack: "🍎" };
+              return (
+                <View key={slot} style={styles.mealSlotRow}>
+                  <Text style={styles.mealSlotEmoji}>{SLOT_EMOJI[slot]}</Text>
+                  <Text style={[styles.mealSlotName, entries.length === 0 && { color: DARK_THEME.textMuted }]}>
+                    {slot.charAt(0).toUpperCase() + slot.slice(1)}
+                  </Text>
+                  {entries.length > 0 ? (
+                    <Text style={[styles.mealSlotCal, { color: accentColor }]}>{slotCal} kcal</Text>
+                  ) : (
+                    <Text style={styles.mealSlotEmpty}>—</Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        </GlowCard>
+
         {/* Recent food log */}
         <GlowCard style={styles.sectionCard} delay={0.3}>
           <View style={styles.recentEatsHeader}>
@@ -624,6 +649,33 @@ const styles = StyleSheet.create({
   logShortcutText: {
     fontSize: TYPE.sm,
     fontWeight: "600",
+  },
+  mealSlots: {
+    marginTop: 12,
+    gap: 10,
+  },
+  mealSlotRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  mealSlotEmoji: {
+    fontSize: 15,
+    width: 22,
+    textAlign: "center",
+  },
+  mealSlotName: {
+    flex: 1,
+    fontSize: TYPE.body,
+    color: DARK_THEME.textPrimary,
+  },
+  mealSlotCal: {
+    fontSize: TYPE.body,
+    fontWeight: "600",
+  },
+  mealSlotEmpty: {
+    fontSize: TYPE.body,
+    color: DARK_THEME.textMuted,
   },
   emptyLog: {
     alignItems: "center",

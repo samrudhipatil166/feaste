@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
     borderColor: DARK_THEME.borderColor,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    fontSize: TYPE.body,
+    fontSize: 16, // ≥16px prevents iOS Safari auto-zoom on focus
     color: DARK_THEME.textPrimary,
   },
   button: {

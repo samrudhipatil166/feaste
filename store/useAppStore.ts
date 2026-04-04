@@ -10,7 +10,7 @@ import {
   PeriodLog,
   UserProfile,
 } from "@/types";
-import { getPhaseForDay, DEFAULT_VITAMINS } from "@/constants/cycle";
+import { getPhaseForDay, getPhaseForDayIrregular, DEFAULT_VITAMINS } from "@/constants/cycle";
 import { GOAL_COLORS, GOAL_GLOWS, DARK_THEME } from "@/constants/theme";
 
 const DEFAULT_GROCERY: GroceryItem[] = [
@@ -140,10 +140,13 @@ export const useAppStore = create<AppStore>()(
         set((s) => {
           const profile = { ...s.profile, ...updates };
           const lpd = profile.lastPeriodDate;
-          const liveDay = lpd
-            ? Math.min(Math.max(1, Math.floor((Date.now() - new Date(lpd).getTime()) / 86400000) + 1), profile.cycleLength)
-            : profile.cycleDay;
-          const phase = getPhaseForDay(liveDay, profile.cycleLength);
+          const daysSince = lpd ? Math.max(0, Math.floor((Date.now() - new Date(lpd).getTime()) / 86400000)) : 0;
+          const phase = profile.isIrregular
+            ? getPhaseForDayIrregular(daysSince)
+            : getPhaseForDay(
+                lpd ? Math.min(daysSince + 1, profile.cycleLength) : profile.cycleDay,
+                profile.cycleLength
+              );
           return { profile, currentPhase: phase };
         }),
 
@@ -155,10 +158,13 @@ export const useAppStore = create<AppStore>()(
       refreshPhase: () => {
         const { profile } = get();
         const lpd = profile.lastPeriodDate;
-        const liveDay = lpd
-          ? Math.min(Math.max(1, Math.floor((Date.now() - new Date(lpd).getTime()) / 86400000) + 1), profile.cycleLength)
-          : profile.cycleDay;
-        const phase = getPhaseForDay(liveDay, profile.cycleLength);
+        const daysSince = lpd ? Math.max(0, Math.floor((Date.now() - new Date(lpd).getTime()) / 86400000)) : 0;
+        const phase = profile.isIrregular
+          ? getPhaseForDayIrregular(daysSince)
+          : getPhaseForDay(
+              lpd ? Math.min(daysSince + 1, profile.cycleLength) : profile.cycleDay,
+              profile.cycleLength
+            );
         set({ currentPhase: phase });
       },
 

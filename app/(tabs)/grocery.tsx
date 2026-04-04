@@ -13,8 +13,7 @@ import Animated, { FadeInDown, FadeIn, Layout } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useAppStore } from "@/store/useAppStore";
-import { DARK_THEME, TYPE } from "@/constants/theme";
-import { PHASE_INFO } from "@/constants/cycle";
+import { DARK_THEME } from "@/constants/theme";
 import { GlowCard } from "@/components/GlowCard";
 import { GroceryItem } from "@/types";
 
@@ -192,88 +191,6 @@ function CategorySection({
   );
 }
 
-// ── Meal plan insights ────────────────────────────────────────────────────────
-function MealPlanInsights({ nextWeek, accentColor }: { nextWeek: any[]; accentColor: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const preview = expanded ? nextWeek : nextWeek.slice(0, 3);
-
-  return (
-    <View style={insightStyles.wrapper}>
-      <Pressable onPress={() => setExpanded((v) => !v)} style={insightStyles.toggleRow}>
-        <Ionicons name="leaf-outline" size={13} color={accentColor} />
-        <Text style={[insightStyles.toggleText, { color: accentColor }]}>
-          Why these meals?
-        </Text>
-        <Ionicons
-          name={expanded ? "chevron-up" : "chevron-down"}
-          size={12} color={accentColor}
-          style={{ marginLeft: "auto" as any }}
-        />
-      </Pressable>
-
-      {preview.map((day: any, i: number) => {
-        const phase = PHASE_INFO[day.phase as keyof typeof PHASE_INFO];
-        return (
-          <View key={i} style={insightStyles.dayRow}>
-            {/* Day + phase pill */}
-            <View style={insightStyles.dayHeader}>
-              <Text style={insightStyles.dayLabel}>{day.dayLabel}</Text>
-              <View style={[insightStyles.phasePill, { backgroundColor: `${phase.color}18`, borderColor: `${phase.color}30` }]}>
-                <Text style={{ fontSize: 10 }}>{phase.emoji}</Text>
-                <Text style={[insightStyles.phaseLabel, { color: phase.color }]}>{phase.label}</Text>
-              </View>
-            </View>
-            {/* Meals with insights */}
-            {(day.meals as any[]).map((meal: any, mi: number) => (
-              <View key={mi} style={insightStyles.mealRow}>
-                <Text style={insightStyles.mealEmoji}>{meal.emoji}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={insightStyles.mealName}>{meal.name}</Text>
-                  <Text style={insightStyles.mealInsight}>{meal.insight}</Text>
-                </View>
-              </View>
-            ))}
-            {i < preview.length - 1 && <View style={insightStyles.divider} />}
-          </View>
-        );
-      })}
-
-      {!expanded && nextWeek.length > 3 && (
-        <Pressable onPress={() => setExpanded(true)} style={insightStyles.showMoreBtn}>
-          <Text style={[insightStyles.showMoreText, { color: accentColor }]}>
-            +{nextWeek.length - 3} more days
-          </Text>
-        </Pressable>
-      )}
-    </View>
-  );
-}
-
-const insightStyles = StyleSheet.create({
-  wrapper: {
-    backgroundColor: "rgba(255,255,255,0.02)",
-    borderRadius: 14, borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    padding: 14, marginBottom: 12,
-  },
-  toggleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 },
-  toggleText: { fontSize: TYPE.sm, fontWeight: "700" },
-  dayRow: { marginBottom: 4 },
-  dayHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
-  dayLabel: { fontSize: TYPE.sm, color: DARK_THEME.textSecondary, fontWeight: "700", minWidth: 28 },
-  phasePill: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1,
-  },
-  phaseLabel: { fontSize: TYPE.xs, fontWeight: "600" },
-  mealRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8, paddingLeft: 36 },
-  mealEmoji: { fontSize: 16, width: 22, textAlign: "center" },
-  mealName: { fontSize: TYPE.sm, color: DARK_THEME.textPrimary, fontWeight: "600" },
-  mealInsight: { fontSize: TYPE.xs, color: DARK_THEME.textMuted, marginTop: 1, lineHeight: 15 },
-  divider: { height: 1, backgroundColor: "rgba(255,255,255,0.05)", marginVertical: 8 },
-  showMoreBtn: { alignItems: "center", paddingTop: 4 },
-  showMoreText: { fontSize: TYPE.sm, fontWeight: "600" },
-});
 
 export default function GroceryScreen() {
   const groceryItems = useAppStore((s) => s.groceryItems);
@@ -282,9 +199,7 @@ export default function GroceryScreen() {
   const planGroceryItems = useAppStore((s) => s.planGroceryItems);
   const togglePlanGroceryItem = useAppStore((s) => s.togglePlanGroceryItem);
   const removePlanGroceryItem = useAppStore((s) => s.removePlanGroceryItem);
-  const weekPlanData = useAppStore((s) => s.weekPlanData);
   const accentColor = useAppStore((s) => s.accentColor());
-  const nextWeek: any[] = weekPlanData?.nextWeek ?? [];
 
   const [showChecked, setShowChecked] = useState(true);
   const [planExpanded, setPlanExpanded] = useState(true);
@@ -374,11 +289,6 @@ export default function GroceryScreen() {
             </Pressable>
             {planExpanded && (
               <>
-                {/* Why these meals — day-by-day phase insights */}
-                {nextWeek.length > 0 && (
-                  <MealPlanInsights nextWeek={nextWeek} accentColor={accentColor} />
-                )}
-                {/* Ingredient categories */}
                 {planCategories.map((cat) => (
                   <GlowCard key={`plan-${cat}`} style={styles.categoryCard} noPadding>
                     <CategorySection

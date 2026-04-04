@@ -2,17 +2,27 @@ import { supabase } from "./supabase";
 
 // All Claude API calls go through Supabase Edge Functions — never expose key in app
 
-export async function analyzeMeal(input: {
-  type: "text" | "voice";
-  description: string;
-}): Promise<{
+export interface MealBreakdownItem {
   name: string;
-  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
+export interface MealAnalysis {
+  name: string;
+  calories?: number;
   protein: number;
   carbs: number;
   fat: number;
   confidence: number;
-} | null> {
+  breakdown?: MealBreakdownItem[];
+}
+
+export async function analyzeMeal(input: {
+  type: "text" | "voice";
+  description: string;
+}): Promise<MealAnalysis | null> {
   const { data, error } = await supabase.functions.invoke("analyze-meal", {
     body: { type: input.type, description: input.description },
   });
@@ -23,14 +33,7 @@ export async function analyzeMeal(input: {
   return data;
 }
 
-export async function analyzeMealPhoto(base64Image: string, description?: string): Promise<{
-  name: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  confidence: number;
-} | null> {
+export async function analyzeMealPhoto(base64Image: string, description?: string): Promise<MealAnalysis | null> {
   const { data, error } = await supabase.functions.invoke("analyze-meal", {
     body: { type: "photo", image: base64Image, ...(description?.trim() ? { description } : {}) },
   });

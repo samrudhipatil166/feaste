@@ -13,6 +13,7 @@ import { DARK_THEME, MACRO_COLORS, TYPE } from "@/constants/theme";
 import { PHASE_INFO, getPhaseForDay } from "@/constants/cycle";
 import { GlowCard } from "@/components/GlowCard";
 import { CyclePhase, FoodEntry, UserProfile } from "@/types";
+import { fetchMealLibrary, clearMealCache, type ApiMeal } from "@/lib/mealApi";
 
 type MealSlot = "Breakfast" | "Lunch" | "Dinner" | "Snack";
 
@@ -804,8 +805,16 @@ const MEAL_LIBRARY: WeekMeal[] = [
 // ── Ingredient extraction for grocery ─────────────────────────────────────────
 const QTY_RE = /^([\d½¼¾⅓⅔\s]+(?:cup|tbsp|tsp|g|kg|oz|lb|ml|slices?|cans?|heads?|pieces?|handfuls?|pinch|drizzle|dash|scoop|squares?|bunches?|medium|large|small|ripe|frozen)s?\s+)/i;
 
+const DESCRIPTOR_RE = /\b(grated|minced|chopped|diced|sliced|fresh|dried|ground|toasted|roasted|cooked|raw|peeled|crushed|torn|shredded|crumbled|beaten|softened|melted|halved|quartered|rinsed|drained)\b/gi;
+
 function extractIngredientName(raw: string): string {
-  return raw.replace(QTY_RE, "").replace(/^(a |an |some )/i, "").trim();
+  return raw
+    .replace(QTY_RE, "")
+    .replace(/^[\d½¼¾⅓⅔.\/\s]+/, "")  // strip bare leading numbers e.g. "1 ginger"
+    .replace(/^(a |an |some )/i, "")
+    .replace(DESCRIPTOR_RE, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function categorizeIngredient(name: string): string {
@@ -820,23 +829,30 @@ function categorizeIngredient(name: string): string {
   return "Pantry";
 }
 
+const AMOUNT_RE = /^([\d½¼¾⅓⅔.\/\s]+(?:cup|tbsp|tsp|g|kg|oz|lb|ml|slices?|cans?|heads?|pieces?|handfuls?|pinch|drizzle|dash|scoop|squares?|bunches?|medium|large|small)?s?\b)/i;
+
 export function extractGroceryFromPlan(weekDays: WeekDay[]): import("@/types").GroceryItem[] {
-  const map = new Map<string, { count: number; category: string }>();
+  const map = new Map<string, { category: string; amounts: string[] }>();
   weekDays.forEach((day) => {
     day.meals.forEach((meal) => {
       meal.ingredients.forEach((raw) => {
         const name = extractIngredientName(raw);
         if (!name) return;
         const key = name.toLowerCase();
+        const amountMatch = raw.match(AMOUNT_RE);
+        const amount = amountMatch ? amountMatch[0].trim() : "";
         const existing = map.get(key);
-        if (existing) existing.count += 1;
-        else map.set(key, { count: 1, category: categorizeIngredient(name) });
+        if (existing) {
+          if (amount && !existing.amounts.includes(amount)) existing.amounts.push(amount);
+        } else {
+          map.set(key, { category: categorizeIngredient(name), amounts: amount ? [amount] : [] });
+        }
       });
     });
   });
-  return Array.from(map.entries()).map(([key, { count, category }], i) => ({
+  return Array.from(map.entries()).map(([key, { category, amounts }], i) => ({
     id: `plan-${Date.now()}-${i}`,
-    name: count > 1 ? `${key} (×${count})` : key,
+    name: amounts.length > 0 ? `${key} — ${amounts.join(" + ")}` : key,
     category,
     checked: false,
   }));
@@ -862,8 +878,9 @@ function isMealSafe(m: WeekMeal, profile: UserProfile, enforCuisine = false): bo
   const userAllergies = profile.allergies.map((a) => a.toLowerCase());
   if (m.allergens.some((a) => userAllergies.includes(a.toLowerCase()))) return false;
   const diet = (profile.dietStyle || "").toLowerCase();
+  const isPlantBased = diet.includes("plant-based") || diet.includes("plant based");
   if (diet.includes("vegan") && !m.dietary.includes("vegan")) return false;
-  if (diet.includes("vegetarian") && !m.dietary.includes("vegetarian") && !m.dietary.includes("vegan")) return false;
+  if ((diet.includes("vegetarian") || isPlantBased) && !m.dietary.includes("vegetarian") && !m.dietary.includes("vegan")) return false;
   if (diet.includes("pescatarian") && !m.dietary.includes("vegan") && !m.dietary.includes("vegetarian") && !m.dietary.includes("pescatarian")) return false;
   const userDislikes = (profile.dislikes ?? []).map((d) => d.toLowerCase());
   if (userDislikes.length > 0) {
@@ -908,7 +925,8 @@ function pickMealForSlot(
   maxCookMin: number,
   usedDays: Map<string, number[]>,
   likedMeals: string[],
-  dayIndex: number, // 0-6 week 1, 7-13 week 2
+  dayIndex: number,
+  mealLibrary: WeekMeal[],
 ): WeekMeal {
   const weekStart = Math.floor(dayIndex / 7) * 7;
   const weekEnd = weekStart + 7;
@@ -916,18 +934,19 @@ function pickMealForSlot(
   function isAllowed(m: WeekMeal): boolean {
     const days = usedDays.get(m.name) ?? [];
     const thisWeekDays = days.filter((d) => d >= weekStart && d < weekEnd);
-    if (thisWeekDays.length >= 2) return false; // max 2x per week
-    if (thisWeekDays.some((d) => Math.abs(dayIndex - d) < 3)) return false; // min 3 days apart
+    if (thisWeekDays.length >= 1) return false; // max once per week
+    if (days.some((d) => d < weekStart)) return false; // not used in any prior week
     return true;
   }
 
-  const cuisineFiltered = MEAL_LIBRARY.filter((m) => isMealSafe(m, profile, true) && m.meal === slot);
+  const fullLibrary = mealLibrary.length > 0 ? mealLibrary : MEAL_LIBRARY;
+  const cuisineFiltered = fullLibrary.filter((m) => isMealSafe(m, profile, true) && m.meal === slot);
   const basePool = cuisineFiltered.length >= 3 ? cuisineFiltered : safeLibrary.filter((m) => m.meal === slot);
 
-  // Try allowed meals first, then relax to "not used this week", then full pool
+  // Try fully unique (no repeats this week or last), then relax cross-week, then full pool
   let candidates = basePool.filter(isAllowed);
   if (candidates.length === 0) candidates = basePool.filter((m) => !(usedDays.get(m.name) ?? []).some((d) => d >= weekStart && d < weekEnd));
-  if (candidates.length === 0) candidates = basePool.length > 0 ? basePool : MEAL_LIBRARY.filter((m) => m.meal === slot);
+  if (candidates.length === 0) candidates = basePool.length > 0 ? basePool : fullLibrary.filter((m) => m.meal === slot);
 
   const calTarget = getSlotCalTarget(slot, profile.calorieGoal);
   const proteinTarget = getSlotProteinTarget(slot, profile.proteinGoal);
@@ -939,7 +958,7 @@ function pickMealForSlot(
     return { meal: m, total: pref + macro };
   });
   scored.sort((a, b) => b.total - a.total);
-  const picked = scored[0].meal;
+  const picked = (scored[0] ?? { meal: fullLibrary.find(m => m.meal === slot) ?? fullLibrary[0] }).meal;
   const existing = usedDays.get(picked.name) ?? [];
   usedDays.set(picked.name, [...existing, dayIndex]);
   return picked;
@@ -952,13 +971,15 @@ function buildMonSunWeek(
   likedMeals: string[],
   usedDays: Map<string, number[]>,
   todayCycleDay?: number,
+  mealLibrary: WeekMeal[] = [],
 ): WeekDay[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const dayOfWeek = today.getDay();
   const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
 
-  const safeLibrary = MEAL_LIBRARY.filter((m) => isMealSafe(m, profile));
+  const lib = mealLibrary.length > 0 ? mealLibrary : MEAL_LIBRARY;
+  const safeLibrary = lib.filter((m) => isMealSafe(m, profile));
   const maxCookMin = parseCookTimeLimit(profile.cookingTime || "30 min");
   const slots: MealSlot[] = profile.mealsPerDay >= 4
     ? ["Breakfast", "Lunch", "Snack", "Dinner"]
@@ -974,7 +995,7 @@ function buildMonSunWeek(
     const adjustedCycleDay = ((baseDay - 1 + daysFromToday) % profile.cycleLength) + 1;
     const phase = getPhaseForDay(adjustedCycleDay, profile.cycleLength);
     const meals = slots.map((slot) =>
-      pickMealForSlot(slot, phase, profile, safeLibrary, maxCookMin, usedDays, likedMeals, dayIndex)
+      pickMealForSlot(slot, phase, profile, safeLibrary, maxCookMin, usedDays, likedMeals, dayIndex, lib)
     );
     return {
       dayLabel: dayLabels[i],
@@ -990,10 +1011,11 @@ function buildFullPlan(
   profile: UserProfile,
   likedMeals: string[],
   todayCycleDay?: number,
+  mealLibrary: WeekMeal[] = [],
 ): { thisWeek: WeekDay[]; nextWeek: WeekDay[] } {
   const usedDays = new Map<string, number[]>();
-  const thisWeek = buildMonSunWeek(0, profile, likedMeals, usedDays, todayCycleDay);
-  const nextWeek = buildMonSunWeek(1, profile, likedMeals, usedDays, todayCycleDay);
+  const thisWeek = buildMonSunWeek(0, profile, likedMeals, usedDays, todayCycleDay, mealLibrary);
+  const nextWeek = buildMonSunWeek(1, profile, likedMeals, usedDays, todayCycleDay, mealLibrary);
   return { thisWeek, nextWeek };
 }
 
@@ -1315,9 +1337,10 @@ function SwapModal({ meal, phase, visible, onClose, onSwap, accentColor, profile
 }
 
 // ── Meal Card ──────────────────────────────────────────────────────────────────
-function MealCard({ meal, phase, isLiked, onDetail, onSwap, onLike, isPast }: {
+function MealCard({ meal, phase, isLiked, onDetail, onSwap, onLike, onLog, isLogged, isPast }: {
   meal: WeekMeal; phase: typeof PHASE_INFO[CyclePhase]; isLiked: boolean;
-  onDetail: () => void; onSwap: () => void; onLike: () => void; isPast: boolean;
+  onDetail: () => void; onSwap: () => void; onLike: () => void;
+  onLog: () => void; isLogged: boolean; isPast: boolean;
 }) {
   return (
     <GlowCard style={[styles.mealCard, isPast && styles.mealCardPast]}>
@@ -1336,6 +1359,15 @@ function MealCard({ meal, phase, isLiked, onDetail, onSwap, onLike, isPast }: {
               size={17}
               color={isLiked ? "#f472b6" : DARK_THEME.textMuted}
             />
+          </Pressable>
+          <Pressable
+            onPress={() => !isLogged && onLog()}
+            style={[styles.logBtn, { backgroundColor: isLogged ? `${phase.color}20` : phase.color }]}
+          >
+            <Ionicons name={isLogged ? "checkmark" : "add"} size={13} color={isLogged ? phase.color : "#0a0e1a"} />
+            <Text style={[styles.logBtnText, { color: isLogged ? phase.color : "#0a0e1a" }]}>
+              {isLogged ? "Logged" : "Log it"}
+            </Text>
           </Pressable>
           <Pressable onPress={onDetail} style={styles.detailBtn} hitSlop={8}>
             <Ionicons name="chevron-forward" size={16} color={DARK_THEME.textMuted} />
@@ -1382,7 +1414,6 @@ export default function PlanScreen() {
   const setPlanGroceryItems = useAppStore((s) => s.setPlanGroceryItems);
   const addFoodEntry = useAppStore((s) => s.addFoodEntry);
 
-  const [planView, setPlanView] = useState<"today" | "week">("today");
   const [weekTab, setWeekTab] = useState<"this" | "next">("this");
   const todayDow = new Date().getDay();
   const todayDefaultIndex = todayDow === 0 ? 6 : todayDow - 1;
@@ -1394,13 +1425,25 @@ export default function PlanScreen() {
 
   // Hydrate or generate plan
   const [plan, setPlan] = useState<{ thisWeek: WeekDay[]; nextWeek: WeekDay[] } | null>(null);
+  const [apiMeals, setApiMeals] = useState<WeekMeal[]>([]);
 
-  const generateAndSave = useCallback(() => {
-    const newPlan = buildFullPlan(profile, likedMeals, currentCycleDay);
+  // Fetch meals from Spoonacular (uses cache for 7 days)
+  useEffect(() => {
+    fetchMealLibrary({
+      diet: profile.dietStyle,
+      allergies: profile.allergies,
+      cuisines: profile.cuisines,
+    })
+      .then((meals) => setApiMeals(meals as WeekMeal[]))
+      .catch(() => {}); // silently fall back to local library on error
+  }, []);
+
+  const generateAndSave = useCallback((library: WeekMeal[] = apiMeals) => {
+    const newPlan = buildFullPlan(profile, likedMeals, currentCycleDay, library);
     setPlan(newPlan);
     setWeekPlanData({ thisWeek: newPlan.thisWeek as any, nextWeek: newPlan.nextWeek as any, generatedAt: new Date().toISOString() });
     setGroceryAdded(false);
-  }, [profile, likedMeals]);
+  }, [profile, likedMeals, apiMeals]);
 
   useEffect(() => {
     if (!weekPlanData || isPlanStale(weekPlanData.generatedAt)) {
@@ -1409,6 +1452,13 @@ export default function PlanScreen() {
       setPlan({ thisWeek: weekPlanData.thisWeek as any, nextWeek: weekPlanData.nextWeek as any });
     }
   }, []);
+
+  // Regenerate once API meals arrive if no cached plan exists
+  useEffect(() => {
+    if (apiMeals.length > 0 && (!weekPlanData || isPlanStale(weekPlanData.generatedAt))) {
+      generateAndSave(apiMeals);
+    }
+  }, [apiMeals]);
 
   if (!plan) return null;
 
@@ -1449,10 +1499,6 @@ export default function PlanScreen() {
   const dayOfWeek = today.getDay();
   const todayMonIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // 0=Mon...6=Sun
 
-  // In "today" view, always show today's day
-  const todayDay = plan.thisWeek[todayMonIndex];
-  const todayPhase = PHASE_INFO[todayDay.phase];
-
   const handleAddToLog = (meal: WeekMeal) => {
     const key = meal.name;
     const entry: FoodEntry = {
@@ -1481,236 +1527,134 @@ export default function PlanScreen() {
               {likedMeals.length > 0 ? `${likedMeals.length} liked meal${likedMeals.length > 1 ? "s" : ""} shaping your plan` : "Cycle-aware · allergy-safe · macro-matched"}
             </Text>
           </View>
-          <Pressable onPress={generateAndSave} style={styles.regenBtn}>
+          <Pressable
+            onPress={async () => {
+              await clearMealCache();
+              const fresh = await fetchMealLibrary({ diet: profile.dietStyle, allergies: profile.allergies, cuisines: profile.cuisines, forceRefresh: true }).catch(() => []);
+              const lib = fresh.length > 0 ? fresh as WeekMeal[] : apiMeals;
+              if (fresh.length > 0) setApiMeals(lib);
+              generateAndSave(lib);
+            }}
+            style={styles.regenBtn}
+          >
             <Ionicons name="refresh" size={17} color={accentColor} />
           </Pressable>
         </Animated.View>
 
-        {/* Today / Week toggle */}
-        <View style={styles.planViewToggle}>
+        {/* Week tabs */}
+        <View style={styles.weekTabRow}>
           <Pressable
-            onPress={() => setPlanView("today")}
-            style={[styles.planViewBtn, planView === "today" && { backgroundColor: accentColor }]}
+            onPress={() => { setWeekTab("this"); setSelectedIndex(todayMonIndex); }}
+            style={[styles.weekTab, weekTab === "this" && { backgroundColor: `${accentColor}18`, borderColor: `${accentColor}40` }]}
           >
-            <Text style={[styles.planViewBtnText, planView === "today" && { color: "#0a0e1a" }]}>Today</Text>
+            <Text style={[styles.weekTabText, weekTab === "this" && { color: accentColor }]}>This Week</Text>
           </Pressable>
           <Pressable
-            onPress={() => setPlanView("week")}
-            style={[styles.planViewBtn, planView === "week" && { backgroundColor: accentColor }]}
+            onPress={() => { setWeekTab("next"); setSelectedIndex(0); }}
+            style={[styles.weekTab, weekTab === "next" && { backgroundColor: `${accentColor}18`, borderColor: `${accentColor}40` }]}
           >
-            <Text style={[styles.planViewBtnText, planView === "week" && { color: "#0a0e1a" }]}>Week</Text>
+            <Text style={[styles.weekTabText, weekTab === "next" && { color: accentColor }]}>Next Week</Text>
+            <View style={[styles.groceryBadge, { backgroundColor: accentColor }]}>
+              <Ionicons name="cart-outline" size={10} color="#0a0e1a" />
+            </View>
           </Pressable>
         </View>
 
-        {planView === "week" && (
-          <View style={styles.weekTabRow}>
-            <Pressable
-              onPress={() => { setWeekTab("this"); setSelectedIndex(todayMonIndex); }}
-              style={[styles.weekTab, weekTab === "this" && { backgroundColor: `${accentColor}18`, borderColor: `${accentColor}40` }]}
-            >
-              <Text style={[styles.weekTabText, weekTab === "this" && { color: accentColor }]}>This Week</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => { setWeekTab("next"); setSelectedIndex(0); }}
-              style={[styles.weekTab, weekTab === "next" && { backgroundColor: `${accentColor}18`, borderColor: `${accentColor}40` }]}
-            >
-              <Text style={[styles.weekTabText, weekTab === "next" && { color: accentColor }]}>Next Week</Text>
-              <View style={[styles.groceryBadge, { backgroundColor: accentColor }]}>
-                <Ionicons name="cart-outline" size={10} color="#0a0e1a" />
-              </View>
-            </Pressable>
+        {/* Day selector */}
+        <ScrollView
+          horizontal showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.daySelectorContent}
+          style={styles.daySelector}
+        >
+          {activeWeek.map((day, i) => {
+            const p = PHASE_INFO[day.phase];
+            const active = i === selectedIndex;
+            const isToday = weekTab === "this" && i === todayMonIndex;
+            return (
+              <Pressable
+                key={i} onPress={() => setSelectedIndex(i)}
+                style={[
+                  styles.dayBtn,
+                  active && { backgroundColor: `${p.color}18`, borderColor: `${p.color}50` },
+                  day.isPast && { opacity: 0.5 },
+                ]}
+              >
+                <Text style={[styles.dayBtnLabel, active && { color: p.color }]}>{day.dayLabel}</Text>
+                <Text style={styles.dayBtnEmoji}>{p.emoji}</Text>
+                <Text style={[styles.dayBtnDate, active && { color: p.color }]}>{day.dateLabel.split("/")[0]}</Text>
+                {isToday && <View style={[styles.todayDot, { backgroundColor: accentColor }]} />}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        {/* Phase + macro summary */}
+        <Animated.View entering={FadeInDown.delay(80).duration(400)} style={styles.phaseRow}>
+          <Text style={styles.phaseEmoji}>{phase.emoji}</Text>
+          <Text style={[styles.phaseLabel, { color: phase.color }]}>{phase.label}</Text>
+          <Text style={styles.phaseDateLabel}>{selectedDay.dateLabel}</Text>
+        </Animated.View>
+
+        <View style={styles.macroSummaryRow}>
+          <View style={styles.macroSummaryItem}>
+            <Text style={[styles.macroSummaryVal, { color: MACRO_COLORS.protein }]}>{dayTotals.protein}g</Text>
+            <Text style={styles.macroSummaryLabel}>Protein</Text>
           </View>
-        )}
+          <View style={styles.macroSummaryDivider} />
+          <View style={styles.macroSummaryItem}>
+            <Text style={[styles.macroSummaryVal, { color: MACRO_COLORS.carbs }]}>{dayTotals.carbs}g</Text>
+            <Text style={styles.macroSummaryLabel}>Carbs</Text>
+          </View>
+          <View style={styles.macroSummaryDivider} />
+          <View style={styles.macroSummaryItem}>
+            <Text style={[styles.macroSummaryVal, { color: MACRO_COLORS.fat }]}>{dayTotals.fat}g</Text>
+            <Text style={styles.macroSummaryLabel}>Fat</Text>
+          </View>
+          <View style={styles.macroSummaryDivider} />
+          <View style={styles.macroSummaryItem}>
+            <Text style={styles.macroSummaryVal}>{dayTotals.cal}</Text>
+            <Text style={styles.macroSummaryLabel}>kcal / {profile.calorieGoal}</Text>
+          </View>
+        </View>
 
-        {/* ── TODAY VIEW ─────────────────────────────────────── */}
-        {planView === "today" && (
-          <>
-            <Animated.View entering={FadeInDown.delay(60).duration(400)} style={styles.phaseRow}>
-              <Text style={styles.phaseEmoji}>{todayPhase.emoji}</Text>
-              <Text style={[styles.phaseLabel, { color: todayPhase.color }]}>{todayPhase.label}</Text>
-              <Text style={styles.phaseDateLabel}>{todayDay.dateLabel}</Text>
+        {/* Meal cards */}
+        <View style={styles.mealList}>
+          {selectedDay.meals.map((meal, i) => (
+            <Animated.View key={`${weekTab}-${selectedIndex}-${i}-${meal.name}`} entering={FadeInDown.delay(i * 70).duration(350)}>
+              <MealCard
+                meal={meal}
+                phase={phase}
+                isLiked={likedMeals.includes(meal.name)}
+                onDetail={() => setDetailMeal(meal)}
+                onSwap={() => setSwapMeal({ meal, mealIndex: i })}
+                onLike={() => toggleLikedMeal(meal.name)}
+                onLog={() => handleAddToLog(meal)}
+                isLogged={loggedMeals.has(meal.name)}
+                isPast={selectedDay.isPast}
+              />
             </Animated.View>
+          ))}
+        </View>
 
-            {(() => {
-              const totals = todayDay.meals.reduce(
-                (acc, m) => ({ cal: acc.cal + m.calories, protein: acc.protein + m.protein, carbs: acc.carbs + m.carbs, fat: acc.fat + m.fat }),
-                { cal: 0, protein: 0, carbs: 0, fat: 0 }
-              );
-              return (
-                <View style={styles.macroSummaryRow}>
-                  <View style={styles.macroSummaryItem}>
-                    <Text style={[styles.macroSummaryVal, { color: MACRO_COLORS.protein }]}>{totals.protein}g</Text>
-                    <Text style={styles.macroSummaryLabel}>Protein</Text>
-                  </View>
-                  <View style={styles.macroSummaryDivider} />
-                  <View style={styles.macroSummaryItem}>
-                    <Text style={[styles.macroSummaryVal, { color: MACRO_COLORS.carbs }]}>{totals.carbs}g</Text>
-                    <Text style={styles.macroSummaryLabel}>Carbs</Text>
-                  </View>
-                  <View style={styles.macroSummaryDivider} />
-                  <View style={styles.macroSummaryItem}>
-                    <Text style={[styles.macroSummaryVal, { color: MACRO_COLORS.fat }]}>{totals.fat}g</Text>
-                    <Text style={styles.macroSummaryLabel}>Fat</Text>
-                  </View>
-                  <View style={styles.macroSummaryDivider} />
-                  <View style={styles.macroSummaryItem}>
-                    <Text style={styles.macroSummaryVal}>{totals.cal}</Text>
-                    <Text style={styles.macroSummaryLabel}>kcal / {profile.calorieGoal}</Text>
-                  </View>
-                </View>
-              );
-            })()}
-
-            <View style={styles.mealList}>
-              {todayDay.meals.map((meal, i) => {
-                const logged = loggedMeals.has(meal.name);
-                return (
-                  <Animated.View key={`today-${i}-${meal.name}`} entering={FadeInDown.delay(i * 70).duration(350)}>
-                    <GlowCard style={styles.mealCard}>
-                      <View style={styles.mealTopRow}>
-                        <View style={styles.mealTopLeft}>
-                          <Text style={styles.mealEmoji}>{meal.emoji}</Text>
-                          <View>
-                            <Text style={[styles.mealType, { color: todayPhase.color }]}>{meal.meal}</Text>
-                            <Text style={styles.mealCuisine}>{meal.cuisine[0]}</Text>
-                          </View>
-                        </View>
-                        <Pressable
-                          onPress={() => !logged && handleAddToLog(meal)}
-                          style={[styles.logBtn, { backgroundColor: logged ? `${accentColor}20` : accentColor }]}
-                        >
-                          <Ionicons name={logged ? "checkmark" : "add"} size={14} color={logged ? accentColor : "#0a0e1a"} />
-                          <Text style={[styles.logBtnText, { color: logged ? accentColor : "#0a0e1a" }]}>
-                            {logged ? "Logged" : "Log"}
-                          </Text>
-                        </Pressable>
-                      </View>
-                      <Text style={styles.mealName}>{meal.name}</Text>
-                      <Text style={styles.mealDesc}>{meal.description}</Text>
-                      <View style={styles.mealMacroRow}>
-                        <View style={styles.mealMacroLeft}>
-                          <Ionicons name="flame" size={12} color={DARK_THEME.textMuted} />
-                          <Text style={styles.mealKcal}>{meal.calories} kcal</Text>
-                          <Text style={styles.mealMacroChip}>P:{meal.protein}g</Text>
-                          <Text style={styles.mealMacroChip}>C:{meal.carbs}g</Text>
-                          <Text style={styles.mealMacroChip}>F:{meal.fat}g</Text>
-                        </View>
-                        <View style={styles.mealTimeRow}>
-                          <Ionicons name="time-outline" size={12} color={DARK_THEME.textMuted} />
-                          <Text style={styles.mealKcal}>{meal.cookTime}</Text>
-                        </View>
-                      </View>
-                      {meal.insight ? <Text style={[styles.mealInsight, { color: todayPhase.color }]}>{meal.insight}</Text> : null}
-                      <Pressable onPress={() => setDetailMeal(meal)} style={styles.recipeBtn}>
-                        <Ionicons name="book-outline" size={13} color={accentColor} />
-                        <Text style={[styles.recipeBtnText, { color: accentColor }]}>See Recipe</Text>
-                      </Pressable>
-                    </GlowCard>
-                  </Animated.View>
-                );
-              })}
-            </View>
-          </>
-        )}
-
-        {/* ── WEEK VIEW ──────────────────────────────────────── */}
-        {planView === "week" && (
-          <>
-            {/* Day selector */}
-            <ScrollView
-              horizontal showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.daySelectorContent}
-              style={styles.daySelector}
+        {/* Next week grocery CTA */}
+        {weekTab === "next" && (
+          <Animated.View entering={FadeInDown.delay(300).duration(400)}>
+            <Pressable
+              onPress={handleAddToGrocery}
+              style={[styles.groceryCta, { borderColor: groceryAdded ? `${accentColor}50` : `${accentColor}30`, backgroundColor: groceryAdded ? `${accentColor}12` : `${accentColor}08` }]}
             >
-              {activeWeek.map((day, i) => {
-                const p = PHASE_INFO[day.phase];
-                const active = i === selectedIndex;
-                const isToday = weekTab === "this" && i === todayMonIndex;
-                return (
-                  <Pressable
-                    key={i} onPress={() => setSelectedIndex(i)}
-                    style={[
-                      styles.dayBtn,
-                      active && { backgroundColor: `${p.color}18`, borderColor: `${p.color}50` },
-                      day.isPast && { opacity: 0.5 },
-                    ]}
-                  >
-                    <Text style={[styles.dayBtnLabel, active && { color: p.color }]}>{day.dayLabel}</Text>
-                    <Text style={styles.dayBtnEmoji}>{p.emoji}</Text>
-                    <Text style={[styles.dayBtnDate, active && { color: p.color }]}>{day.dateLabel.split("/")[0]}</Text>
-                    {isToday && <View style={[styles.todayDot, { backgroundColor: accentColor }]} />}
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            {/* Phase + macro summary */}
-            <Animated.View entering={FadeInDown.delay(80).duration(400)} style={styles.phaseRow}>
-              <Text style={styles.phaseEmoji}>{phase.emoji}</Text>
-              <Text style={[styles.phaseLabel, { color: phase.color }]}>{phase.label}</Text>
-              <Text style={styles.phaseDateLabel}>{selectedDay.dateLabel}</Text>
-            </Animated.View>
-
-            <View style={styles.macroSummaryRow}>
-              <View style={styles.macroSummaryItem}>
-                <Text style={[styles.macroSummaryVal, { color: MACRO_COLORS.protein }]}>{dayTotals.protein}g</Text>
-                <Text style={styles.macroSummaryLabel}>Protein</Text>
+              <Ionicons name={groceryAdded ? "checkmark-circle" : "cart-outline"} size={20} color={accentColor} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.groceryCtaTitle, { color: accentColor }]}>
+                  {groceryAdded ? "Grocery list updated!" : "Add next week to Grocery List"}
+                </Text>
+                <Text style={styles.groceryCtaSub}>
+                  {groceryAdded ? "Check the Grocery tab to shop" : "All ingredients auto-extracted & grouped"}
+                </Text>
               </View>
-              <View style={styles.macroSummaryDivider} />
-              <View style={styles.macroSummaryItem}>
-                <Text style={[styles.macroSummaryVal, { color: MACRO_COLORS.carbs }]}>{dayTotals.carbs}g</Text>
-                <Text style={styles.macroSummaryLabel}>Carbs</Text>
-              </View>
-              <View style={styles.macroSummaryDivider} />
-              <View style={styles.macroSummaryItem}>
-                <Text style={[styles.macroSummaryVal, { color: MACRO_COLORS.fat }]}>{dayTotals.fat}g</Text>
-                <Text style={styles.macroSummaryLabel}>Fat</Text>
-              </View>
-              <View style={styles.macroSummaryDivider} />
-              <View style={styles.macroSummaryItem}>
-                <Text style={styles.macroSummaryVal}>{dayTotals.cal}</Text>
-                <Text style={styles.macroSummaryLabel}>kcal / {profile.calorieGoal}</Text>
-              </View>
-            </View>
-
-            {/* Meal cards */}
-            <View style={styles.mealList}>
-              {selectedDay.meals.map((meal, i) => (
-                <Animated.View key={`${weekTab}-${selectedIndex}-${i}-${meal.name}`} entering={FadeInDown.delay(i * 70).duration(350)}>
-                  <MealCard
-                    meal={meal}
-                    phase={phase}
-                    isLiked={likedMeals.includes(meal.name)}
-                    onDetail={() => setDetailMeal(meal)}
-                    onSwap={() => setSwapMeal({ meal, mealIndex: i })}
-                    onLike={() => toggleLikedMeal(meal.name)}
-                    isPast={selectedDay.isPast}
-                  />
-                </Animated.View>
-              ))}
-            </View>
-
-            {/* Next week grocery CTA */}
-            {weekTab === "next" && (
-              <Animated.View entering={FadeInDown.delay(300).duration(400)}>
-                <Pressable
-                  onPress={handleAddToGrocery}
-                  style={[styles.groceryCta, { borderColor: groceryAdded ? `${accentColor}50` : `${accentColor}30`, backgroundColor: groceryAdded ? `${accentColor}12` : `${accentColor}08` }]}
-                >
-                  <Ionicons name={groceryAdded ? "checkmark-circle" : "cart-outline"} size={20} color={accentColor} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.groceryCtaTitle, { color: accentColor }]}>
-                      {groceryAdded ? "Grocery list updated!" : "Add next week to Grocery List"}
-                    </Text>
-                    <Text style={styles.groceryCtaSub}>
-                      {groceryAdded ? "Check the Grocery tab to shop" : "All ingredients auto-extracted & grouped"}
-                    </Text>
-                  </View>
-                  {!groceryAdded && <Ionicons name="chevron-forward" size={16} color={accentColor} />}
-                </Pressable>
-              </Animated.View>
-            )}
-          </>
+              {!groceryAdded && <Ionicons name="chevron-forward" size={16} color={accentColor} />}
+            </Pressable>
+          </Animated.View>
         )}
 
         <View style={{ height: 20 }} />
@@ -1745,15 +1689,6 @@ const styles = StyleSheet.create({
   title: { fontFamily: "Georgia", fontSize: 26, color: DARK_THEME.textPrimary, fontWeight: "600" },
   subtitle: { fontSize: TYPE.sm, color: DARK_THEME.textSecondary, marginTop: 4 },
   regenBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.06)" },
-
-  planViewToggle: {
-    flexDirection: "row", backgroundColor: "rgba(255,255,255,0.05)",
-    borderRadius: 14, padding: 3, marginBottom: 16,
-  },
-  planViewBtn: {
-    flex: 1, paddingVertical: 8, borderRadius: 11, alignItems: "center",
-  },
-  planViewBtnText: { fontSize: TYPE.md, fontWeight: "600", color: DARK_THEME.textMuted },
 
   logBtn: {
     flexDirection: "row", alignItems: "center", gap: 4,

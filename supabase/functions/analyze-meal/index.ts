@@ -8,6 +8,24 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const BREAKDOWN_FORMAT = `{
+  "name": "overall meal name",
+  "protein": total_grams,
+  "carbs": total_grams,
+  "fat": total_grams,
+  "confidence": 0_to_1,
+  "breakdown": [
+    { "name": "food item + portion e.g. Rice pilaf (~180g)", "protein": grams, "carbs": grams, "fat": grams },
+    { "name": "food item + portion e.g. Köfte meatballs (3 pcs ~120g)", "protein": grams, "carbs": grams, "fat": grams }
+  ]
+}
+
+Rules:
+- List every distinct food item visible as its own entry in breakdown
+- Include the estimated portion/weight in the item name
+- The totals (protein/carbs/fat) must equal the sum of the breakdown entries
+- Do NOT include a calories field — calories are calculated from macros as protein×4 + carbs×4 + fat×9`;
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -34,44 +52,37 @@ Deno.serve(async (req: Request) => {
         },
         {
           type: "text",
-          text: `Analyse this meal photo and estimate the nutritional content.${description ? `\nAdditional context from the user: "${description}"` : ""}
-Return ONLY valid JSON in this exact format, no other text:
-{
-  "name": "meal name",
-  "calories": number,
-  "protein": number (grams),
-  "carbs": number (grams),
-  "fat": number (grams),
-  "confidence": number (0-1)
-}`,
+          text: `Analyse this meal photo. Identify every food item on the plate and estimate macros for each one separately.${description ? `\nUser added context: "${description}"` : ""}
+
+Return ONLY valid JSON, no other text:
+${BREAKDOWN_FORMAT}`,
         },
       ];
     } else {
-      userContent = `Analyse this meal description and estimate the nutritional content.
+      userContent = `Analyse this meal and estimate macros for each food component separately.
 Description: "${description}"
 
-Return ONLY valid JSON in this exact format, no other text:
-{
-  "name": "meal name",
-  "calories": number,
-  "protein": number (grams),
-  "carbs": number (grams),
-  "fat": number (grams),
-  "confidence": number (0-1)
-}`;
+Return ONLY valid JSON, no other text:
+${BREAKDOWN_FORMAT}`;
     }
 
     const message = await client.messages.create({
-      model: "claude-opus-4-6",
-      max_tokens: 256,
+      model: "claude-sonnet-4-6",
+      max_tokens: 512,
       messages: [{ role: "user", content: userContent }],
     });
 
     const rawText = (message.content[0] as { type: "text"; text: string }).text.trim();
-    // Strip markdown code fences if present, then extract the JSON object
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("No JSON found in response");
     const result = JSON.parse(jsonMatch[0]);
+
+    // Enforce: totals = sum of breakdown (so the numbers always add up)
+    if (Array.isArray(result.breakdown) && result.breakdown.length > 0) {
+      result.protein = result.breakdown.reduce((s: number, i: any) => s + (i.protein ?? 0), 0);
+      result.carbs   = result.breakdown.reduce((s: number, i: any) => s + (i.carbs   ?? 0), 0);
+      result.fat     = result.breakdown.reduce((s: number, i: any) => s + (i.fat     ?? 0), 0);
+    }
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -81,7 +92,7 @@ Return ONLY valid JSON in this exact format, no other text:
     console.error("analyze-meal error:", msg);
     return new Response(
       JSON.stringify({ error: "Analysis failed", detail: msg }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });

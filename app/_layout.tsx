@@ -14,7 +14,13 @@ function AuthGate() {
   const hasHydrated = useAppStore((s) => s._hasHydrated);
 
   useEffect(() => {
-    if (!hasHydrated) return; // wait for store to load from storage
+    if (!hasHydrated) return;
+
+    function isOnboarded(session: any) {
+      // Check Supabase user metadata first (cross-device), fall back to local store
+      return session?.user?.user_metadata?.onboarded === true ||
+        useAppStore.getState().onboarded;
+    }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       const inAuthGroup = segments[0] === "(auth)";
@@ -22,7 +28,7 @@ function AuthGate() {
         if (!inAuthGroup) router.replace("/(auth)/login");
       } else {
         setUserId(session.user.id);
-        if (!onboarded) {
+        if (!isOnboarded(session)) {
           router.replace("/onboarding");
         } else if (inAuthGroup || segments[0] === "onboarding") {
           router.replace("/(tabs)");
@@ -37,7 +43,7 @@ function AuthGate() {
           router.replace("/(auth)/login");
         } else {
           setUserId(session.user.id);
-          if (!onboarded) {
+          if (!isOnboarded(session)) {
             router.replace("/onboarding");
           } else {
             router.replace("/(tabs)");

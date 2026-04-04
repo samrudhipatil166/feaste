@@ -15,10 +15,11 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.feaste.app",
+      "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "Feaste uses the camera to analyse your meals and estimate macros.",
-        "NSMicrophoneUsageDescription": "Feaste uses the microphone so you can log meals by voice.",
-        "NSSpeechRecognitionUsageDescription": "Feaste uses speech recognition to transcribe your voice meal logs."
+        "NSPhotoLibraryUsageDescription": "Feaste accesses your photo library to analyse meal images.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -28,8 +29,7 @@
       },
       "package": "com.feaste.app",
       "permissions": [
-        "CAMERA",
-        "RECORD_AUDIO"
+        "android.permission.CAMERA"
       ]
     },
     "web": {
@@ -65,6 +65,12 @@
     "experiments": {
       "typedRoutes": true
     },
-    "newArchEnabled": true
+    "newArchEnabled": true,
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b638f211-550f-41fb-a1d3-69b576bf2ab9"
+      }
+    }
   }
 }

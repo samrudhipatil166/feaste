@@ -12,80 +12,56 @@ import {
   Platform,
   Image,
 } from "react-native";
-import Animated, {
-  FadeInDown,
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withSequence,
-  withTiming,
-  Easing,
-} from "react-native-reanimated";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useAppStore } from "@/store/useAppStore";
 import { DARK_THEME } from "@/constants/theme";
 import { GlowCard } from "@/components/GlowCard";
-import { analyzeMeal, analyzeMealPhoto } from "@/lib/api";
+import { analyzeMeal, analyzeMealPhoto, type MealBreakdownItem } from "@/lib/api";
+import { buildLogInsight } from "@/lib/insight";
 import { FoodEntry, MealType } from "@/types";
 
-type InputMode = "photo" | "voice" | "text" | "manual";
+type InputMode = "photo" | "text" | "manual";
 
 const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 
 interface AnalysisResult {
   name: string;
-  calories: number;
+  calories: number; // always set by normalizeResult — never used raw from API
   protein: number;
   carbs: number;
   fat: number;
   confidence: number;
+  breakdown?: MealBreakdownItem[];
 }
 
-function VoicePulse({ active, color }: { active: boolean; color: string }) {
-  const scale = useSharedValue(1);
 
-  React.useEffect(() => {
-    if (active) {
-      scale.value = withRepeat(
-        withSequence(
-          withTiming(1.2, { duration: 600, easing: Easing.inOut(Easing.sin) }),
-          withTiming(1, { duration: 600, easing: Easing.inOut(Easing.sin) })
-        ),
-        -1
-      );
-    } else {
-      scale.value = withTiming(1);
-    }
-  }, [active]);
-
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
+function BreakdownRow({ item, accentColor }: { item: MealBreakdownItem; accentColor: string }) {
+  const kcal = Math.round(item.protein * 4 + item.carbs * 4 + item.fat * 9);
   return (
-    <Animated.View
-      style={[
-        styles.voiceOrb,
-        { backgroundColor: `${color}20`, borderColor: `${color}40` },
-        animStyle,
-      ]}
-    >
-      <Ionicons name="mic" size={32} color={color} />
-    </Animated.View>
+    <View style={styles.breakdownRow}>
+      <Text style={styles.breakdownName} numberOfLines={1}>{item.name}</Text>
+      <Text style={styles.breakdownMacros}>
+        P:{item.protein}g  C:{item.carbs}g  F:{item.fat}g
+      </Text>
+      <Text style={[styles.breakdownKcal, { color: accentColor }]}>{kcal} kcal</Text>
+    </View>
   );
 }
 
 function AnalysisResultCard({
   result,
   accentColor,
+  insight,
   mealType,
   onAdd,
   onDiscard,
 }: {
   result: AnalysisResult;
   accentColor: string;
+  insight: string;
   mealType: MealType;
   onAdd: () => void;
   onDiscard: () => void;
@@ -124,6 +100,25 @@ function AnalysisResultCard({
           ))}
         </View>
 
+        {result.breakdown && result.breakdown.length > 0 && (
+          <View style={styles.breakdownWrap}>
+            <Text style={styles.breakdownTitle}>How we got there</Text>
+            {result.breakdown.map((item, i) => (
+              <BreakdownRow key={i} item={item} accentColor={accentColor} />
+            ))}
+            <View style={styles.breakdownDivider} />
+            <View style={styles.breakdownRow}>
+              <Text style={[styles.breakdownName, { color: "#fff", fontWeight: "600" }]}>Total</Text>
+              <Text style={styles.breakdownMacros}>
+                P:{result.protein}g  C:{result.carbs}g  F:{result.fat}g
+              </Text>
+              <Text style={[styles.breakdownKcal, { color: accentColor, fontWeight: "600" }]}>{result.calories} kcal</Text>
+            </View>
+          </View>
+        )}
+
+        <Text style={[styles.insightText, { color: accentColor }]}>{insight}</Text>
+
         <View style={styles.resultActions}>
           <Pressable onPress={onDiscard} style={styles.discardBtn}>
             <Text style={styles.discardText}>Discard</Text>
@@ -144,6 +139,7 @@ function AnalysisResultCard({
 export default function LogScreen() {
   const addFoodEntry = useAppStore((s) => s.addFoodEntry);
   const accentColor = useAppStore((s) => s.accentColor());
+  const currentPhase = useAppStore((s) => s.currentPhase);
 
   const [mode, setMode] = useState<InputMode>("photo");
   const [mealType, setMealType] = useState<MealType>("lunch");
@@ -166,17 +162,19 @@ export default function LogScreen() {
   const [manualF, setManualF] = useState("");
   const [manualError, setManualError] = useState("");
 
-  // Voice
-  const [voiceText, setVoiceText] = useState("");
-
   const MODES: { key: InputMode; icon: keyof typeof Ionicons.glyphMap; label: string }[] = [
     { key: "photo", icon: "camera-outline", label: "Photo" },
-    { key: "voice", icon: "mic-outline", label: "Voice" },
     { key: "text", icon: "text-outline", label: "Text" },
     { key: "manual", icon: "create-outline", label: "Manual" },
   ];
 
   const clearPhoto = () => { setPhotoUri(null); setPhotoBase64(null); setPhotoDesc(""); setErrorMsg(""); };
+
+  // Always derive calories from macros so the numbers are consistent
+  const normalizeResult = (r: AnalysisResult): AnalysisResult => ({
+    ...r,
+    calories: Math.round(r.protein * 4 + r.carbs * 4 + r.fat * 9),
+  });
 
   const handleAddResult = (r: AnalysisResult) => {
     const entry: FoodEntry = {
@@ -193,7 +191,6 @@ export default function LogScreen() {
     addFoodEntry(entry);
     setResult(null);
     setTextInput("");
-    setVoiceText("");
     clearPhoto();
     setSuccessName(r.name);
     setTimeout(() => setSuccessName(""), 3000);
@@ -226,7 +223,7 @@ export default function LogScreen() {
     const analysis = await analyzeMealPhoto(photoBase64, photoDesc);
     setAnalysing(false);
     if (analysis) {
-      setResult(analysis);
+      setResult(normalizeResult(analysis));
     } else {
       setErrorMsg("Couldn't analyse the photo. Try adding a short description to help.");
     }
@@ -239,22 +236,11 @@ export default function LogScreen() {
     setResult(null);
     const analysis = await analyzeMeal({ type: "text", description: textInput });
     setAnalysing(false);
-    if (analysis) setResult(analysis);
+    if (analysis) setResult(normalizeResult(analysis));
     else setErrorMsg("Couldn't analyse your description. Try being more specific.");
   };
 
-  const handleVoiceAnalyse = async () => {
-    if (!voiceText.trim()) return;
-    setAnalysing(true);
-    setErrorMsg("");
-    setResult(null);
-    const analysis = await analyzeMeal({ type: "voice", description: voiceText });
-    setAnalysing(false);
-    if (analysis) setResult(analysis);
-    else setErrorMsg("Couldn't analyse the description. Try again.");
-  };
-
-  const handleManualAdd = () => {
+const handleManualAdd = () => {
     if (!manualName.trim() || !manualCal) { setManualError("Please enter at least a name and calories."); return; }
     const entry: FoodEntry = {
       id: Date.now().toString(),
@@ -290,7 +276,7 @@ export default function LogScreen() {
         <Animated.View entering={FadeInDown.duration(400)}>
           <Text style={styles.title}>Log Food</Text>
           <Text style={styles.subtitle}>
-            Snap it, say it, or type it — we'll do the math 🧠
+            Snap it, type it, or add it manually — we'll do the math 🧠
           </Text>
         </Animated.View>
 
@@ -372,6 +358,7 @@ export default function LogScreen() {
           <AnalysisResultCard
             result={result}
             accentColor={accentColor}
+            insight={buildLogInsight(currentPhase, result.protein, result.carbs, result.fat)}
             mealType={mealType}
             onAdd={() => handleAddResult(result)}
             onDiscard={() => { setResult(null); clearPhoto(); }}
@@ -436,56 +423,6 @@ export default function LogScreen() {
                 )}
               </View>
             )}
-          </GlowCard>
-        )}
-
-        {/* Voice mode */}
-        {mode === "voice" && !result && (
-          <GlowCard glowColor={accentColor} style={{ marginBottom: 12 }}>
-            <View style={styles.voiceMode}>
-              <VoicePulse active={false} color={accentColor} />
-              <Text style={styles.voiceTitle}>Describe your meal</Text>
-              <Text style={styles.voiceHint}>
-                e.g. "I had grilled chicken with rice and broccoli"
-              </Text>
-              <TextInput
-                style={styles.voiceInput}
-                value={voiceText}
-                onChangeText={setVoiceText}
-                placeholder="Or type what you ate..."
-                placeholderTextColor={DARK_THEME.textMuted}
-                multiline
-              />
-              {analysing ? (
-                <View style={styles.analysingRow}>
-                  <ActivityIndicator color={accentColor} />
-                  <Text style={[styles.analysingText, { color: accentColor }]}>Analysing...</Text>
-                </View>
-              ) : (
-                <Pressable
-                  onPress={handleVoiceAnalyse}
-                  disabled={!voiceText.trim()}
-                  style={[
-                    styles.analyseBtn,
-                    { backgroundColor: voiceText.trim() ? accentColor : "rgba(255,255,255,0.06)" },
-                  ]}
-                >
-                  <Ionicons
-                    name="sparkles"
-                    size={16}
-                    color={voiceText.trim() ? "#0a0e1a" : DARK_THEME.textMuted}
-                  />
-                  <Text
-                    style={[
-                      styles.analyseBtnText,
-                      { color: voiceText.trim() ? "#0a0e1a" : DARK_THEME.textMuted },
-                    ]}
-                  >
-                    Analyse
-                  </Text>
-                </Pressable>
-              )}
-            </View>
           </GlowCard>
         )}
 
@@ -717,45 +654,6 @@ const styles = StyleSheet.create({
     flex: 1, fontSize: 13, color: DARK_THEME.textPrimary,
     minHeight: 44, textAlignVertical: "top",
   },
-  voiceMode: {
-    alignItems: "center",
-    paddingVertical: 20,
-    gap: 10,
-  },
-  voiceOrb: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    marginBottom: 4,
-  },
-  voiceTitle: {
-    fontSize: 15,
-    color: DARK_THEME.textPrimary,
-    fontWeight: "500",
-  },
-  voiceHint: {
-    fontSize: 12,
-    color: DARK_THEME.textMuted,
-    textAlign: "center",
-    paddingHorizontal: 16,
-  },
-  voiceInput: {
-    width: "100%",
-    backgroundColor: DARK_THEME.inputBg,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: DARK_THEME.borderColor,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: DARK_THEME.textPrimary,
-    minHeight: 80,
-    textAlignVertical: "top",
-    marginTop: 8,
-  },
   textModeHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -854,6 +752,52 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: DARK_THEME.textSecondary,
     marginTop: 2,
+  },
+  breakdownWrap: {
+    marginTop: 14,
+    padding: 12,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 10,
+    gap: 6,
+  },
+  breakdownTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: DARK_THEME.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  breakdownRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  breakdownName: {
+    flex: 1,
+    fontSize: 12,
+    color: DARK_THEME.textSecondary,
+  },
+  breakdownMacros: {
+    fontSize: 11,
+    color: DARK_THEME.textMuted,
+  },
+  breakdownKcal: {
+    fontSize: 12,
+    minWidth: 56,
+    textAlign: "right",
+  },
+  breakdownDivider: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    marginVertical: 4,
+  },
+  insightText: {
+    fontSize: 12,
+    fontStyle: "italic",
+    lineHeight: 17,
+    marginTop: 12,
+    marginBottom: 4,
   },
   resultActions: {
     flexDirection: "row",

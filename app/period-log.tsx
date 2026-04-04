@@ -61,16 +61,26 @@ export default function PeriodLogScreen() {
   });
   const decDay = () => setStartDay((d) => (d > 1 ? d - 1 : maxDay));
 
+  const minYear = todayY - 2;
+
   const incMonth = () => {
-    const next = (startMonth + 1) % 12;
-    if (next > maxMonth) return;
-    setStartMonth(next);
-    if (startYear === todayY && next === todayM && startDay > todayD) setStartDay(todayD);
+    if (startYear === todayY && startMonth >= todayM) return;
+    if (startMonth === 11) { setStartMonth(0); setStartYear((y) => y + 1); }
+    else {
+      const next = startMonth + 1;
+      setStartMonth(next);
+      if (startYear === todayY && next === todayM && startDay > todayD) setStartDay(todayD);
+    }
   };
-  const decMonth = () => setStartMonth((m) => (m > 0 ? m - 1 : 0));
+  const decMonth = () => {
+    if (startMonth === 0) {
+      if (startYear <= minYear) return;
+      setStartMonth(11); setStartYear((y) => y - 1);
+    } else setStartMonth((m) => m - 1);
+  };
 
   const incYear = () => { if (startYear < todayY) setStartYear((y) => y + 1); };
-  const decYear = () => setStartYear((y) => y - 1);
+  const decYear = () => { if (startYear > minYear) setStartYear((y) => y - 1); };
 
   const toggleSymptom = (s: string) => {
     setSymptoms((prev) =>

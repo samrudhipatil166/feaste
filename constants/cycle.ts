@@ -91,6 +91,14 @@ export function getPhaseForDay(day: number, cycleLength: number): CyclePhase {
   return "luteal";
 }
 
+/** Phase estimate for irregular cycles — fixed cutoffs from last period start */
+export function getPhaseForDayIrregular(daysSinceLastPeriod: number): CyclePhase {
+  if (daysSinceLastPeriod <= 5) return "menstrual";
+  if (daysSinceLastPeriod <= 13) return "follicular";
+  if (daysSinceLastPeriod <= 16) return "ovulatory";
+  return "luteal";
+}
+
 export const DEFAULT_VITAMINS = [
   {
     id: "1",

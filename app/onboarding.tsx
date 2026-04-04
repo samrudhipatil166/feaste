@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -82,6 +82,8 @@ export default function OnboardingScreen() {
   const [periodDay, setPeriodDay] = useState(today.getDate());
   const [periodMonth, setPeriodMonth] = useState(today.getMonth());
   const [periodYear, setPeriodYear] = useState(today.getFullYear());
+  const [calViewMonth, setCalViewMonth] = useState(today.getMonth());
+  const [calViewYear, setCalViewYear] = useState(today.getFullYear());
   const [periodDays, setPeriodDays] = useState(5);
   const [flow, setFlow] = useState("Medium");
   const [symptoms, setSymptoms] = useState<string[]>([]);
@@ -105,6 +107,20 @@ export default function OnboardingScreen() {
     weightloss: { cal: "1600", protein: "130", carbs: "155", fat: "55" },
     hormonal:   { cal: "1800", protein: "100", carbs: "210", fat: "70" },
   };
+
+  // Auto-recalculate macros when calories change, using goal-based ratios
+  useEffect(() => {
+    const cal = parseInt(calorieGoal);
+    if (!cal || cal < 500) return;
+    const preset = GOAL_MACRO_PRESETS[goal as keyof typeof GOAL_MACRO_PRESETS] ?? GOAL_MACRO_PRESETS.wellness;
+    const baseCal = parseInt(preset.cal);
+    const proteinRatio = (parseInt(preset.protein) * 4) / baseCal;
+    const carbsRatio = (parseInt(preset.carbs) * 4) / baseCal;
+    const fatRatio = (parseInt(preset.fat) * 9) / baseCal;
+    setProteinGoal(String(Math.round((cal * proteinRatio) / 4)));
+    setCarbsGoal(String(Math.round((cal * carbsRatio) / 4)));
+    setFatGoal(String(Math.round((cal * fatRatio) / 9)));
+  }, [calorieGoal]);
 
   const toggle = (arr: string[], set: (v: string[]) => void, item: string) => {
     if (item === "None") {
@@ -188,6 +204,7 @@ export default function OnboardingScreen() {
       });
     }
 
+    await supabase.auth.updateUser({ data: { onboarded: true } });
     setOnboarded(true);
     setSaving(false);
     router.replace("/(tabs)");
@@ -299,24 +316,26 @@ export default function OnboardingScreen() {
               <Text style={styles.stepperRange}>1–10 days</Text>
             </View>
           </View>
+        </View>
+      )}
 
-          {/* Last period date — calendar grid */}
-          <View>
+      {/* Last period date — calendar grid */}
+      <View style={{ marginTop: 14 }}>
             <Text style={styles.label}>When did your last period start?</Text>
             {(() => {
               const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
               const todayMidnight = new Date(todayY, todayM, todayD);
-              // Build 5 weeks back + today = 36 dates
-              const dates: Date[] = Array.from({ length: 36 }, (_, i) => {
-                const d = new Date(todayMidnight);
-                d.setDate(todayMidnight.getDate() - (35 - i));
-                return d;
-              });
-              // Pad start so Mon is first column
-              const firstDow = (dates[0].getDay() + 6) % 7; // 0=Mon
+              // Build full month grid for calViewYear/calViewMonth
+              const daysInCalMonth = new Date(calViewYear, calViewMonth + 1, 0).getDate();
+              const dates: Date[] = Array.from({ length: daysInCalMonth }, (_, i) =>
+                new Date(calViewYear, calViewMonth, i + 1)
+              );
+              const firstDow = (new Date(calViewYear, calViewMonth, 1).getDay() + 6) % 7;
               const paddedDates: (Date | null)[] = [...Array(firstDow).fill(null), ...dates];
               const rows: (Date | null)[][] = [];
               for (let i = 0; i < paddedDates.length; i += 7) rows.push(paddedDates.slice(i, i + 7));
+              const isAtMaxMonth = calViewYear === todayY && calViewMonth === todayM;
+              const isAtMinMonth = calViewYear === todayY - 2 && calViewMonth === 0;
 
               const selectedDate = new Date(periodYear, periodMonth, periodDay);
               const isSelected = (d: Date) =>
@@ -324,6 +343,30 @@ export default function OnboardingScreen() {
 
               return (
                 <View style={styles.calendarWrap}>
+                  {/* Month navigation */}
+                  <View style={styles.calNavRow}>
+                    <Pressable
+                      onPress={() => {
+                        if (isAtMinMonth) return;
+                        if (calViewMonth === 0) { setCalViewMonth(11); setCalViewYear(y => y - 1); }
+                        else setCalViewMonth(m => m - 1);
+                      }}
+                      style={[styles.calNavBtn, isAtMinMonth && { opacity: 0.3 }]}
+                    >
+                      <Text style={styles.calNavText}>‹</Text>
+                    </Pressable>
+                    <Text style={styles.calNavTitle}>{MONTHS[calViewMonth]} {calViewYear}</Text>
+                    <Pressable
+                      onPress={() => {
+                        if (isAtMaxMonth) return;
+                        if (calViewMonth === 11) { setCalViewMonth(0); setCalViewYear(y => y + 1); }
+                        else setCalViewMonth(m => m + 1);
+                      }}
+                      style={[styles.calNavBtn, isAtMaxMonth && { opacity: 0.3 }]}
+                    >
+                      <Text style={styles.calNavText}>›</Text>
+                    </Pressable>
+                  </View>
                   {/* Day-of-week headers */}
                   <View style={styles.calendarRow}>
                     {DAY_LABELS.map((l, i) => (
@@ -336,9 +379,11 @@ export default function OnboardingScreen() {
                         if (!d) return <View key={ci} style={styles.calendarCell} />;
                         const sel = isSelected(d);
                         const isToday = d.getTime() === todayMidnight.getTime();
+                        const isFuture = d > todayMidnight;
                         return (
                           <Pressable
                             key={ci}
+                            disabled={isFuture}
                             onPress={() => {
                               setPeriodDay(d.getDate());
                               setPeriodMonth(d.getMonth());
@@ -348,6 +393,7 @@ export default function OnboardingScreen() {
                               styles.calendarCell,
                               sel && { backgroundColor: accentColor, borderRadius: 8 },
                               !sel && isToday && { borderWidth: 1, borderColor: `${accentColor}60`, borderRadius: 8 },
+                              isFuture && { opacity: 0.2 },
                             ]}
                           >
                             <Text style={[
@@ -375,6 +421,8 @@ export default function OnboardingScreen() {
             })()}
           </View>
 
+      {!irregular && (
+        <View style={{ gap: 14, marginTop: 14 }}>
           {/* Flow */}
           <View style={styles.sectionBox}>
             <Text style={styles.sectionTitle}>Flow</Text>
@@ -849,6 +897,12 @@ const styles = StyleSheet.create({
     fontSize: TYPE.md,
     color: DARK_THEME.textSecondary,
   },
+  calNavRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8,
+  },
+  calNavBtn: { padding: 8 },
+  calNavText: { fontSize: 22, color: DARK_THEME.textPrimary, lineHeight: 24 },
+  calNavTitle: { fontSize: TYPE.body, fontWeight: "600", color: DARK_THEME.textPrimary },
   calendarWrap: {
     backgroundColor: DARK_THEME.cardBg,
     borderRadius: 16,
