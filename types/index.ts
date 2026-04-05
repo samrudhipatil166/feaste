@@ -10,6 +10,7 @@ export interface FoodEntry {
   carbs: number;
   fat: number;
   time: string;
+  date: string; // ISO YYYY-MM-DD — used to filter to today only
   meal: MealType;
   source?: "manual" | "photo" | "voice" | "text" | "ai";
 }

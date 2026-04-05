@@ -185,6 +185,7 @@ export default function LogScreen() {
       carbs: r.carbs,
       fat: r.fat,
       meal: mealType,
+      date: new Date().toISOString().slice(0, 10),
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       source: mode === "manual" ? "manual" : mode === "photo" ? "photo" : "text",
     };
@@ -250,6 +251,7 @@ const handleManualAdd = () => {
       carbs: parseInt(manualC, 10) || 0,
       fat: parseInt(manualF, 10) || 0,
       meal: mealType,
+      date: new Date().toISOString().slice(0, 10),
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       source: "manual",
     };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View, Text, Pressable, StyleSheet, ScrollView,
   TextInput,
@@ -1415,9 +1415,18 @@ export default function PlanScreen() {
   const addFoodEntry = useAppStore((s) => s.addFoodEntry);
 
   const [weekTab, setWeekTab] = useState<"this" | "next">("this");
-  const todayDow = new Date().getDay();
-  const todayDefaultIndex = todayDow === 0 ? 6 : todayDow - 1;
-  const [selectedIndex, setSelectedIndex] = useState(todayDefaultIndex);
+  const getTodayIndex = () => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1; };
+  const [selectedIndex, setSelectedIndex] = useState(getTodayIndex);
+  const lastDateRef = useRef(new Date().toISOString().slice(0, 10));
+  // Reset to today if the date has changed (e.g. app left open overnight)
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    if (lastDateRef.current !== today) {
+      lastDateRef.current = today;
+      setWeekTab("this");
+      setSelectedIndex(getTodayIndex());
+    }
+  });
   const [loggedMeals, setLoggedMeals] = useState<Set<string>>(new Set());
   const [detailMeal, setDetailMeal] = useState<WeekMeal | null>(null);
   const [swapMeal, setSwapMeal] = useState<{ meal: WeekMeal; mealIndex: number } | null>(null);

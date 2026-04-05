@@ -205,10 +205,13 @@ export default function TodayScreen() {
   const privacyAccepted = useAppStore((s) => s.privacyAccepted);
   const setPrivacyAccepted = useAppStore((s) => s.setPrivacyAccepted);
 
-  const totalCal = foodLog.reduce((s, f) => s + f.calories, 0);
-  const totalProtein = foodLog.reduce((s, f) => s + f.protein, 0);
-  const totalCarbs = foodLog.reduce((s, f) => s + f.carbs, 0);
-  const totalFat = foodLog.reduce((s, f) => s + f.fat, 0);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayLog = foodLog.filter((f) => f.date === todayStr || !f.date);
+
+  const totalCal = todayLog.reduce((s, f) => s + f.calories, 0);
+  const totalProtein = todayLog.reduce((s, f) => s + f.protein, 0);
+  const totalCarbs = todayLog.reduce((s, f) => s + f.carbs, 0);
+  const totalFat = todayLog.reduce((s, f) => s + f.fat, 0);
 
   const today = new Date();
   const greeting = today.getHours() < 12
@@ -328,7 +331,7 @@ export default function TodayScreen() {
           <Text style={styles.cardTitle}>Meals Today</Text>
           <View style={styles.mealSlots}>
             {(["breakfast", "lunch", "dinner", "snack"] as const).map((slot) => {
-              const entries = foodLog.filter((e) => e.meal === slot);
+              const entries = todayLog.filter((e) => e.meal === slot);
               const slotCal = entries.reduce((s, e) => s + e.calories, 0);
               const SLOT_EMOJI: Record<string, string> = { breakfast: "🌅", lunch: "☀️", dinner: "🌙", snack: "🍎" };
               return (
@@ -360,7 +363,7 @@ export default function TodayScreen() {
               <Text style={[styles.logShortcutText, { color: accentColor }]}>Log food</Text>
             </Pressable>
           </View>
-          {foodLog.length === 0 ? (
+          {todayLog.length === 0 ? (
             <Pressable onPress={() => router.push("/(tabs)/log")} style={styles.emptyLog}>
               <Text style={styles.emptyEmoji}>🍽️</Text>
               <Text style={styles.emptyText}>No food logged yet today</Text>
@@ -368,13 +371,13 @@ export default function TodayScreen() {
             </Pressable>
           ) : (
             <View>
-              {foodLog.slice().reverse().slice(0, 5).map((entry, idx) => (
+              {todayLog.slice().reverse().slice(0, 5).map((entry, idx) => (
                 <Animated.View
                   key={entry.id}
                   entering={FadeInDown.delay(0.4 + idx * 0.08).duration(300)}
                 >
                   <FoodLogEntry entry={entry} accentColor={accentColor} />
-                  {idx < Math.min(foodLog.length, 5) - 1 && (
+                  {idx < Math.min(todayLog.length, 5) - 1 && (
                     <View style={styles.logDivider} />
                   )}
                 </Animated.View>
