@@ -1049,6 +1049,7 @@ function MealDetailModal({ meal, visible, onClose, accentColor }: {
         <View style={styles.modalHandle} />
           <ScrollView showsVerticalScrollIndicator={false}>
             <Text style={styles.detailTitle}>{meal.emoji} {meal.name}</Text>
+            <Text style={styles.detailDescription}>{meal.description}</Text>
 
             <View style={styles.detailMacroRow}>
               <View style={styles.detailMacroItem}>
@@ -1375,7 +1376,6 @@ function MealCard({ meal, phase, isLiked, onDetail, onSwap, onLike, onLog, isLog
         </View>
       </View>
       <Text style={[styles.mealName, isPast && { color: DARK_THEME.textSecondary }]}>{meal.name}</Text>
-      <Text style={styles.mealDesc}>{meal.description}</Text>
       <View style={styles.mealMacroRow}>
         <View style={styles.mealMacroLeft}>
           <Ionicons name="flame" size={12} color={DARK_THEME.textMuted} />
@@ -1788,7 +1788,8 @@ const styles = StyleSheet.create({
     width: 36, height: 4, borderRadius: 2,
     backgroundColor: "rgba(255,255,255,0.15)", alignSelf: "center", marginBottom: 16,
   },
-  detailTitle: { fontFamily: "Georgia", fontSize: 18, color: DARK_THEME.textPrimary, fontWeight: "600", marginBottom: 12 },
+  detailTitle: { fontFamily: "Georgia", fontSize: 18, color: DARK_THEME.textPrimary, fontWeight: "600", marginBottom: 6 },
+  detailDescription: { fontSize: TYPE.body, color: DARK_THEME.textSecondary, marginBottom: 14, lineHeight: 20 },
   detailMacroRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" },
   detailMacroItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   detailKcal: { fontSize: TYPE.sm, color: DARK_THEME.textMuted },

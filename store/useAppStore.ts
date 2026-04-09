@@ -53,6 +53,7 @@ interface AppStore {
   foodLog: FoodEntry[];
   addFoodEntry: (entry: FoodEntry) => void;
   removeFoodEntry: (id: string) => void;
+  editFoodEntry: (id: string, updates: Partial<FoodEntry>) => void;
   clearTodayLog: () => void;
 
   // ── Grocery ────────────────────────────────────────────────────────────────
@@ -178,6 +179,8 @@ export const useAppStore = create<AppStore>()(
         set((s) => ({ foodLog: [...s.foodLog, entry] })),
       removeFoodEntry: (id) =>
         set((s) => ({ foodLog: s.foodLog.filter((e) => e.id !== id) })),
+      editFoodEntry: (id, updates) =>
+        set((s) => ({ foodLog: s.foodLog.map((e) => e.id === id ? { ...e, ...updates } : e) })),
       clearTodayLog: () => set({ foodLog: [] }),
 
       // Grocery

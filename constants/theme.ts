@@ -1,17 +1,17 @@
 import { GoalType } from "@/types";
 
 export const GOAL_COLORS: Record<GoalType, string> = {
-  wellness: "#FBD168",
-  muscle: "#4ECDC4",
-  weightloss: "#FF6B6B",
-  hormonal: "#C084FC",
+  wellness:   "#F5C842",  // warm gold
+  muscle:     "#5B9FE8",  // steel blue (not teal)
+  weightloss: "#F07058",  // coral-red
+  hormonal:   "#B47FE8",  // soft purple
 };
 
 export const GOAL_GLOWS: Record<GoalType, string> = {
-  wellness: "rgba(251,209,104,0.15)",
-  muscle: "rgba(78,205,196,0.15)",
-  weightloss: "rgba(255,107,107,0.15)",
-  hormonal: "rgba(192,132,252,0.15)",
+  wellness:   "rgba(245,200,66,0.12)",
+  muscle:     "rgba(91,159,232,0.12)",
+  weightloss: "rgba(240,112,88,0.12)",
+  hormonal:   "rgba(180,127,232,0.12)",
 };
 
 export const GOAL_LABELS: Record<GoalType, string> = {
@@ -43,9 +43,10 @@ export const TYPE = {
   xxl: 24,   // hero / app name
 };
 
+// Vibrant fills only — never used as font color
 export const MACRO_COLORS = {
-  protein: "#6BA8A4",  // muted teal
-  carbs: "#9B8EC4",    // muted lavender
-  fat: "#C49A6C",      // muted amber
-  water: "#5B8DB8",    // muted blue
+  protein: "#6BA8A4",  // teal
+  carbs:   "#9B8EC4",  // lavender
+  fat:     "#C49A6C",  // amber
+  water:   "#5B8DB8",  // blue
 };

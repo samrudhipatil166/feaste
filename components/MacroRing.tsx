@@ -76,7 +76,7 @@ export function MacroRing({
       </Svg>
       {/* Center text */}
       <View style={[styles.centerText, { width: size, height: size }]}>
-        <Text style={[styles.value, { color }]}>{value}</Text>
+        <Text style={styles.value}>{value}</Text>
         <Text style={styles.unit}>{unit}</Text>
       </View>
       <Text style={styles.label}>{label}</Text>
@@ -97,6 +97,7 @@ const styles = StyleSheet.create({
   value: {
     fontSize: 14,
     fontWeight: "600",
+    color: DARK_THEME.textPrimary,
   },
   unit: {
     fontSize: 9,

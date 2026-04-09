@@ -10,16 +10,35 @@ function AuthGate() {
   const router = useRouter();
   const segments = useSegments();
   const setUserId = useAppStore((s) => s.setUserId);
-  const onboarded = useAppStore((s) => s.onboarded);
+  const updateProfile = useAppStore((s) => s.updateProfile);
   const hasHydrated = useAppStore((s) => s._hasHydrated);
+  const lastPeriodDate = useAppStore((s) => s.profile.lastPeriodDate);
+
+  // Sync lastPeriodDate to Supabase user metadata whenever it changes locally
+  useEffect(() => {
+    if (!lastPeriodDate) return;
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.auth.updateUser({ data: { lastPeriodDate } });
+    });
+  }, [lastPeriodDate]);
 
   useEffect(() => {
     if (!hasHydrated) return;
 
     function isOnboarded(session: any) {
-      // Check Supabase user metadata first (cross-device), fall back to local store
       return session?.user?.user_metadata?.onboarded === true ||
         useAppStore.getState().onboarded;
+    }
+
+    // Load lastPeriodDate from Supabase metadata, taking whichever is more recent
+    function loadPeriodDateFromMeta(session: any) {
+      const metaDate = session?.user?.user_metadata?.lastPeriodDate;
+      if (!metaDate) return;
+      const localDate = useAppStore.getState().profile.lastPeriodDate;
+      if (!localDate || metaDate > localDate) {
+        updateProfile({ lastPeriodDate: metaDate });
+      }
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -28,6 +47,7 @@ function AuthGate() {
         if (!inAuthGroup) router.replace("/(auth)/login");
       } else {
         setUserId(session.user.id);
+        loadPeriodDateFromMeta(session);
         if (!isOnboarded(session)) {
           router.replace("/onboarding");
         } else if (inAuthGroup || segments[0] === "onboarding") {
@@ -38,11 +58,14 @@ function AuthGate() {
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
+        // USER_UPDATED fires when we call updateUser to save metadata — skip routing
+        if (_event === "USER_UPDATED") return;
         if (!session) {
           setUserId(null);
           router.replace("/(auth)/login");
         } else {
           setUserId(session.user.id);
+          loadPeriodDateFromMeta(session);
           if (!isOnboarded(session)) {
             router.replace("/onboarding");
           } else {

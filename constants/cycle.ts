@@ -14,7 +14,7 @@ export const PHASE_INFO: Record<
   menstrual: {
     emoji: "🌺",
     label: "Menstrual Phase",
-    color: "#f472b6",
+    color: "#D96B8A",
     foodFocus: ["Iron-rich", "Anti-inflammatory", "Warming foods"],
     eat: [
       "Dark leafy greens",
@@ -34,7 +34,7 @@ export const PHASE_INFO: Record<
   follicular: {
     emoji: "🌱",
     label: "Follicular Phase",
-    color: "#4ECDC4",
+    color: "#6BAA76",
     foodFocus: ["Light & fresh", "Fermented foods", "Lean protein"],
     eat: [
       "Sprouted grains",
@@ -49,7 +49,7 @@ export const PHASE_INFO: Record<
   ovulatory: {
     emoji: "✨",
     label: "Ovulatory Phase",
-    color: "#FBD168",
+    color: "#D4A840",
     foodFocus: ["Fiber-rich", "Antioxidants", "Light carbs"],
     eat: [
       "Quinoa",
@@ -64,7 +64,7 @@ export const PHASE_INFO: Record<
   luteal: {
     emoji: "🌙",
     label: "Luteal Phase",
-    color: "#a78bfa",
+    color: "#9B7FD4",
     foodFocus: ["Magnesium-rich", "Complex carbs", "Serotonin-boosting"],
     eat: [
       "Brown rice",

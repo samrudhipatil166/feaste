@@ -73,7 +73,7 @@ export function CycleCard() {
         </View>
       </View>
 
-      {/* Progress bar */}
+      {/* Progress bar — markers at real phase boundaries: 18%, 50%, 60% */}
       <View style={styles.progressTrack}>
         <Animated.View
           style={[
@@ -85,7 +85,7 @@ export function CycleCard() {
             },
           ]}
         />
-        {[0.25, 0.5, 0.75].map((p) => (
+        {[0.18, 0.5, 0.6].map((p) => (
           <View
             key={p}
             style={[styles.progressMarker, { left: `${p * 100}%` as any }]}
@@ -93,10 +93,27 @@ export function CycleCard() {
         ))}
       </View>
 
-      {/* Phase minimap */}
-      <View style={styles.phaseRow}>
-        {(["🌺 Menstrual", "🌱 Follicular", "✨ Ovulatory", "🌙 Luteal"] as const).map((label) => (
-          <Text key={label} style={styles.phaseMinilabel}>{label}</Text>
+      {/* Phase minimap — labels centered on each phase segment */}
+      <View style={[styles.phaseRow, { position: "relative", height: 16 }]}>
+        {([
+          { label: "🌺 Men", mid: 0.09 },
+          { label: "🌱 Foll", mid: 0.34 },
+          { label: "✨ Ovu", mid: 0.55 },
+          { label: "🌙 Lut", mid: 0.8 },
+        ] as const).map(({ label, mid }) => (
+          <Text
+            key={label}
+            style={[
+              styles.phaseMinilabel,
+              {
+                position: "absolute",
+                left: `${mid * 100}%` as any,
+                transform: [{ translateX: -18 }],
+              },
+            ]}
+          >
+            {label}
+          </Text>
         ))}
       </View>
 
@@ -236,32 +253,32 @@ const styles = StyleSheet.create({
   expandSection: {},
   eatLabel: {
     fontSize: 12,
-    color: "#4ECDC4",
+    color: "#8A9E98",
     marginBottom: 8,
   },
   eatPill: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
-    backgroundColor: "rgba(78,205,196,0.08)",
+    backgroundColor: "rgba(138,158,152,0.10)",
   },
   eatPillText: {
     fontSize: 11,
-    color: "#4ECDC4",
+    color: "#8A9E98",
   },
   avoidLabel: {
     fontSize: 12,
-    color: "#f472b6",
+    color: "#9E8A8A",
     marginBottom: 8,
   },
   avoidPill: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
-    backgroundColor: "rgba(244,114,182,0.08)",
+    backgroundColor: "rgba(158,138,138,0.10)",
   },
   avoidPillText: {
     fontSize: 11,
-    color: "#f472b6",
+    color: "#9E8A8A",
   },
 });

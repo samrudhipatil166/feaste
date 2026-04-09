@@ -6,8 +6,6 @@ import {
   Pressable,
   StyleSheet,
   ScrollView,
- 
-  Alert,
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
@@ -40,47 +38,15 @@ export default function PeriodLogScreen() {
   const [flow, setFlow] = useState<PeriodLog["flow"]>("medium");
   const [symptoms, setSymptoms] = useState<string[]>([]);
   const today = new Date();
-  const [startDay, setStartDay] = useState(today.getDate());
-  const [startMonth, setStartMonth] = useState(today.getMonth());
-  const [startYear, setStartYear] = useState(today.getFullYear());
-
-  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const daysInMonth = new Date(startYear, startMonth + 1, 0).getDate();
-  const startDateStr = `${startYear}-${String(startMonth + 1).padStart(2,"0")}-${String(startDay).padStart(2,"0")}`;
-
   const todayY = today.getFullYear();
   const todayM = today.getMonth();
   const todayD = today.getDate();
+  const [startDay, setStartDay] = useState(todayD);
+  const [startMonth, setStartMonth] = useState(todayM);
+  const [startYear, setStartYear] = useState(todayY);
 
-  const maxDay = (startYear === todayY && startMonth === todayM) ? todayD : daysInMonth;
-  const maxMonth = startYear === todayY ? todayM : 11;
-
-  const incDay = () => setStartDay((d) => {
-    const next = d < daysInMonth ? d + 1 : 1;
-    return next > maxDay ? 1 : next;
-  });
-  const decDay = () => setStartDay((d) => (d > 1 ? d - 1 : maxDay));
-
-  const minYear = todayY - 2;
-
-  const incMonth = () => {
-    if (startYear === todayY && startMonth >= todayM) return;
-    if (startMonth === 11) { setStartMonth(0); setStartYear((y) => y + 1); }
-    else {
-      const next = startMonth + 1;
-      setStartMonth(next);
-      if (startYear === todayY && next === todayM && startDay > todayD) setStartDay(todayD);
-    }
-  };
-  const decMonth = () => {
-    if (startMonth === 0) {
-      if (startYear <= minYear) return;
-      setStartMonth(11); setStartYear((y) => y - 1);
-    } else setStartMonth((m) => m - 1);
-  };
-
-  const incYear = () => { if (startYear < todayY) setStartYear((y) => y + 1); };
-  const decYear = () => { if (startYear > minYear) setStartYear((y) => y - 1); };
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const startDateStr = `${startYear}-${String(startMonth + 1).padStart(2,"0")}-${String(startDay).padStart(2,"0")}`;
 
   const toggleSymptom = (s: string) => {
     setSymptoms((prev) =>
@@ -185,56 +151,73 @@ export default function PeriodLogScreen() {
           </View>
         </GlowCard>
 
-        {/* Start date */}
+        {/* Start date — calendar grid */}
         <GlowCard style={styles.card}>
           <Text style={styles.sectionLabel}>When did it start?</Text>
-          <View style={styles.dateRow}>
-            {/* Day */}
-            <View style={styles.dateCol}>
-              <Pressable onPress={incDay} style={styles.dateArrow}>
-                <Ionicons name="chevron-up" size={16} color={accentColor} />
-              </Pressable>
-              <View style={[styles.dateCell, { borderColor: accentColor }]}>
-                <Text style={styles.dateCellText}>{String(startDay).padStart(2,"0")}</Text>
+          {(() => {
+            const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+            const todayMidnight = new Date(todayY, todayM, todayD);
+            const dates: Date[] = Array.from({ length: 36 }, (_, i) => {
+              const d = new Date(todayMidnight);
+              d.setDate(todayMidnight.getDate() - (35 - i));
+              return d;
+            });
+            const firstDow = (dates[0].getDay() + 6) % 7;
+            const padded: (Date | null)[] = [...Array(firstDow).fill(null), ...dates];
+            const rows: (Date | null)[][] = [];
+            for (let i = 0; i < padded.length; i += 7) rows.push(padded.slice(i, i + 7));
+            const isSelected = (d: Date) =>
+              d.getFullYear() === startYear && d.getMonth() === startMonth && d.getDate() === startDay;
+            return (
+              <View style={styles.calendarWrap}>
+                <View style={styles.calendarRow}>
+                  {DAY_LABELS.map((l, i) => (
+                    <Text key={i} style={styles.calendarDow}>{l}</Text>
+                  ))}
+                </View>
+                {rows.map((row, ri) => (
+                  <View key={ri} style={styles.calendarRow}>
+                    {row.map((d, ci) => {
+                      if (!d) return <View key={ci} style={styles.calendarCell} />;
+                      const sel = isSelected(d);
+                      const isToday = d.getTime() === todayMidnight.getTime();
+                      return (
+                        <Pressable
+                          key={ci}
+                          onPress={() => {
+                            setStartDay(d.getDate());
+                            setStartMonth(d.getMonth());
+                            setStartYear(d.getFullYear());
+                          }}
+                          style={[
+                            styles.calendarCell,
+                            sel && { backgroundColor: accentColor, borderRadius: 8 },
+                            !sel && isToday && { borderWidth: 1, borderColor: `${accentColor}60`, borderRadius: 8 },
+                          ]}
+                        >
+                          <Text style={[
+                            styles.calendarDayText,
+                            sel && { color: "#0a0e1a", fontWeight: "700" },
+                            !sel && isToday && { color: accentColor },
+                          ]}>
+                            {d.getDate()}
+                          </Text>
+                          {d.getDate() === 1 && (
+                            <Text style={[styles.calendarMonthLabel, sel && { color: "#0a0e1a" }]}>
+                              {MONTHS[d.getMonth()]}
+                            </Text>
+                          )}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ))}
+                <Text style={styles.calendarSelected}>
+                  Selected: {String(startDay).padStart(2, "0")} {MONTHS[startMonth]} {startYear}
+                </Text>
               </View>
-              <Pressable onPress={decDay} style={styles.dateArrow}>
-                <Ionicons name="chevron-down" size={16} color={accentColor} />
-              </Pressable>
-              <Text style={styles.dateLabel}>DD</Text>
-            </View>
-
-            <Text style={styles.dateSep}>–</Text>
-
-            {/* Month */}
-            <View style={styles.dateCol}>
-              <Pressable onPress={incMonth} style={styles.dateArrow}>
-                <Ionicons name="chevron-up" size={16} color={accentColor} />
-              </Pressable>
-              <View style={[styles.dateCell, { borderColor: accentColor }]}>
-                <Text style={styles.dateCellText}>{MONTHS[startMonth]}</Text>
-              </View>
-              <Pressable onPress={decMonth} style={styles.dateArrow}>
-                <Ionicons name="chevron-down" size={16} color={accentColor} />
-              </Pressable>
-              <Text style={styles.dateLabel}>MON</Text>
-            </View>
-
-            <Text style={styles.dateSep}>–</Text>
-
-            {/* Year */}
-            <View style={styles.dateCol}>
-              <Pressable onPress={incYear} style={styles.dateArrow}>
-                <Ionicons name="chevron-up" size={16} color={accentColor} />
-              </Pressable>
-              <View style={[styles.dateCell, { borderColor: accentColor }]}>
-                <Text style={styles.dateCellText}>{startYear}</Text>
-              </View>
-              <Pressable onPress={decYear} style={styles.dateArrow}>
-                <Ionicons name="chevron-down" size={16} color={accentColor} />
-              </Pressable>
-              <Text style={styles.dateLabel}>YYYY</Text>
-            </View>
-          </View>
+            );
+          })()}
         </GlowCard>
 
         {/* Past logs */}
@@ -307,16 +290,29 @@ const styles = StyleSheet.create({
     backgroundColor: DARK_THEME.cardBg, borderWidth: 1, borderColor: DARK_THEME.borderColor,
   },
   symptomText: { fontSize: 12, color: DARK_THEME.textSecondary },
-  dateRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
-  dateCol: { flex: 1, alignItems: "center", gap: 4 },
-  dateArrow: { padding: 4 },
-  dateCell: {
-    width: "100%", paddingVertical: 8, borderRadius: 10,
-    borderWidth: 1.5, backgroundColor: DARK_THEME.inputBg, alignItems: "center",
+  calendarWrap: {
+    backgroundColor: DARK_THEME.cardBg,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: DARK_THEME.borderColor,
+    padding: 10,
+    gap: 2,
   },
-  dateCellText: { fontSize: 14, fontWeight: "700", color: DARK_THEME.textPrimary },
-  dateSep: { fontSize: 16, color: DARK_THEME.textMuted, marginBottom: 20 },
-  dateLabel: { fontSize: 10, color: DARK_THEME.textMuted, letterSpacing: 0.5 },
+  calendarRow: { flexDirection: "row" },
+  calendarDow: {
+    flex: 1, textAlign: "center", fontSize: 11,
+    color: DARK_THEME.textMuted, paddingVertical: 4, fontWeight: "600",
+  },
+  calendarCell: {
+    flex: 1, alignItems: "center", justifyContent: "center",
+    paddingVertical: 5, minHeight: 36,
+  },
+  calendarDayText: { fontSize: 13, color: DARK_THEME.textPrimary },
+  calendarMonthLabel: { fontSize: 8, color: DARK_THEME.textMuted, marginTop: 1 },
+  calendarSelected: {
+    fontSize: 12, color: DARK_THEME.textSecondary,
+    textAlign: "center", marginTop: 8,
+  },
   pastTitle: { fontFamily: "Georgia", fontSize: 14, color: DARK_THEME.textPrimary, marginBottom: 8 },
   pastRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   pastDate: { fontSize: 13, color: DARK_THEME.textPrimary },
