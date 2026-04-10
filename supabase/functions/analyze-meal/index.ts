@@ -102,15 +102,16 @@ ${BREAKDOWN_FORMAT}`;
       result.fat     = result.breakdown.reduce((s: number, i: { fat?: number })     => s + (i.fat     ?? 0), 0);
     }
 
-    return new Response(JSON.stringify(result), {
+    return new Response(JSON.stringify({ ok: true, ...result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("analyze-meal error:", msg);
+    // Always return 200 so the client can read the error detail
     return new Response(
-      JSON.stringify({ error: "Analysis failed", detail: msg }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      JSON.stringify({ ok: false, error: msg }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
