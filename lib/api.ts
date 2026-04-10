@@ -2,6 +2,20 @@ import { supabase } from "./supabase";
 
 // All Claude API calls go through Supabase Edge Functions — never expose key in app
 
+async function invokeWithRetry(
+  fn: string,
+  body: object,
+  retries = 2,
+): Promise<{ data: unknown; error: unknown }> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const { data, error } = await supabase.functions.invoke(fn, { body });
+    if (!error && !data?.error) return { data, error: null };
+    if (attempt < retries) await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+    else return { data, error };
+  }
+  return { data: null, error: new Error("Max retries exceeded") };
+}
+
 export interface MealBreakdownItem {
   name: string;
   protein: number;
@@ -23,25 +37,19 @@ export async function analyzeMeal(input: {
   type: "text" | "voice";
   description: string;
 }): Promise<MealAnalysis | null> {
-  const { data, error } = await supabase.functions.invoke("analyze-meal", {
-    body: { type: input.type, description: input.description },
+  const { data, error } = await invokeWithRetry("analyze-meal", {
+    type: input.type, description: input.description,
   });
-  if (error) {
-    console.error("analyze-meal error:", error);
-    return null;
-  }
-  return data;
+  if (error) { console.error("analyze-meal error:", error); return null; }
+  return data as MealAnalysis;
 }
 
 export async function analyzeMealPhoto(base64Image: string, description?: string): Promise<MealAnalysis | null> {
-  const { data, error } = await supabase.functions.invoke("analyze-meal", {
-    body: { type: "photo", image: base64Image, ...(description?.trim() ? { description } : {}) },
+  const { data, error } = await invokeWithRetry("analyze-meal", {
+    type: "photo", image: base64Image, ...(description?.trim() ? { description } : {}),
   });
-  if (error) {
-    console.error("analyze-meal-photo error:", error);
-    return null;
-  }
-  return data;
+  if (error) { console.error("analyze-meal-photo error:", error); return null; }
+  return data as MealAnalysis;
 }
 
 export async function generateDailyPlan(context: {

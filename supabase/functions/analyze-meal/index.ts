@@ -1,7 +1,5 @@
 // Supabase Edge Function — analyze-meal
-// Called by the app; proxies to Anthropic API so the key is never in the client
-
-import Anthropic from "npm:@anthropic-ai/sdk@0.40.0";
+// Uses direct fetch to Anthropic API (no SDK dependency)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,13 +30,12 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
+
     const { type, description, image } = await req.json();
 
-    const client = new Anthropic({
-      apiKey: Deno.env.get("ANTHROPIC_API_KEY")!,
-    });
-
-    let userContent: Anthropic.MessageParam["content"];
+    let userContent: unknown;
 
     if (type === "photo" && image) {
       userContent = [
@@ -66,22 +63,43 @@ Return ONLY valid JSON, no other text:
 ${BREAKDOWN_FORMAT}`;
     }
 
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 512,
-      messages: [{ role: "user", content: userContent }],
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
 
-    const rawText = (message.content[0] as { type: "text"; text: string }).text.trim();
+    const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1024,
+        messages: [{ role: "user", content: userContent }],
+      }),
+    });
+    clearTimeout(timeout);
+
+    if (!anthropicRes.ok) {
+      const errBody = await anthropicRes.text();
+      console.error("Anthropic API error:", anthropicRes.status, errBody);
+      throw new Error(`Anthropic API returned ${anthropicRes.status}: ${errBody}`);
+    }
+
+    const anthropicData = await anthropicRes.json();
+    const rawText = (anthropicData.content?.[0]?.text ?? "").trim();
+
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("No JSON found in response");
     const result = JSON.parse(jsonMatch[0]);
 
-    // Enforce: totals = sum of breakdown (so the numbers always add up)
+    // Enforce: totals = sum of breakdown
     if (Array.isArray(result.breakdown) && result.breakdown.length > 0) {
-      result.protein = result.breakdown.reduce((s: number, i: any) => s + (i.protein ?? 0), 0);
-      result.carbs   = result.breakdown.reduce((s: number, i: any) => s + (i.carbs   ?? 0), 0);
-      result.fat     = result.breakdown.reduce((s: number, i: any) => s + (i.fat     ?? 0), 0);
+      result.protein = result.breakdown.reduce((s: number, i: { protein?: number }) => s + (i.protein ?? 0), 0);
+      result.carbs   = result.breakdown.reduce((s: number, i: { carbs?: number })   => s + (i.carbs   ?? 0), 0);
+      result.fat     = result.breakdown.reduce((s: number, i: { fat?: number })     => s + (i.fat     ?? 0), 0);
     }
 
     return new Response(JSON.stringify(result), {
