@@ -224,7 +224,6 @@ export default function LogScreen() {
     const analysis = await analyzeMealPhoto(photoBase64, photoDesc);
     setAnalysing(false);
     if (analysis) {
-      console.log("analysis data:", JSON.stringify(analysis));
       setResult(normalizeResult(analysis));
     } else {
       setErrorMsg("Couldn't analyse the photo. Try adding a short description to help.");
