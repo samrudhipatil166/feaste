@@ -416,12 +416,23 @@ export default function LogScreen() {
   const profile = useAppStore((s) => s.profile);
   const vitaminsTakenByDate = useAppStore((s) => s.vitaminsTakenByDate);
   const toggleVitaminTakenForDate = useAppStore((s) => s.toggleVitaminTakenForDate);
+  const logPrefill = useAppStore((s) => s.logPrefill);
+  const setLogPrefill = useAppStore((s) => s.setLogPrefill);
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayLog = foodLog.filter((f) => f.date === todayStr || !f.date);
   const hasPCOS = profile.conditions.includes("PCOS");
   const phaseVitamins = hasPCOS ? PCOS_VITAMINS : PHASE_VITAMINS[currentPhase];
   const takenToday = vitaminsTakenByDate[todayStr] ?? [];
+
+  // Handle prefill from home screen chips
+  useEffect(() => {
+    if (logPrefill) {
+      setMode("text");
+      setTextInput(logPrefill);
+      setLogPrefill(null);
+    }
+  }, [logPrefill]);
 
   // Mode state
   const [mode, setMode] = useState<InputMode>("photo");

@@ -100,6 +100,10 @@ interface AppStore {
   togglePlanGroceryItem: (id: string) => void;
   removePlanGroceryItem: (id: string) => void;
 
+  // ── Log prefill (transient — not persisted) ───────────────────────────────
+  logPrefill: string | null;
+  setLogPrefill: (text: string | null) => void;
+
   // ── Derived helpers (not persisted) ───────────────────────────────────────
   accentColor: () => string;
   glowColor: () => string;
@@ -274,6 +278,10 @@ export const useAppStore = create<AppStore>()(
         set((s) => ({
           planGroceryItems: s.planGroceryItems.filter((i) => i.id !== id),
         })),
+
+      // Log prefill (transient)
+      logPrefill: null,
+      setLogPrefill: (text) => set({ logPrefill: text }),
 
       // Derived
       accentColor: () => ACCENT,
