@@ -27,6 +27,7 @@ import { GlowCard } from "@/components/GlowCard";
 import { MacroRing } from "@/components/MacroRing";
 import { CycleCard } from "@/components/CycleCard";
 import { FoodEntry } from "@/types";
+import { PHASE_INFO } from "@/constants/cycle";
 
 function CalorieBar({
   current,
@@ -196,6 +197,42 @@ function FoodLogEntry({ entry, accentColor }: { entry: FoodEntry; accentColor: s
   );
 }
 
+function DailyBriefCard() {
+  const router = useRouter();
+  const currentPhase = useAppStore((s) => s.currentPhase);
+  const accentColor = useAppStore((s) => s.accentColor());
+  const phase = PHASE_INFO[currentPhase];
+
+  return (
+    <GlowCard glowColor={phase.color} style={styles.sectionCard}>
+      <View style={styles.briefHeader}>
+        <View style={styles.briefPhaseRow}>
+          <Text style={styles.briefEmoji}>{phase.emoji}</Text>
+          <Text style={[styles.briefPhaseName, { color: phase.color }]}>{phase.label}</Text>
+        </View>
+        <Pressable onPress={() => router.push("/(tabs)/plan")}>
+          <Text style={[styles.briefSeeMore, { color: phase.color }]}>Full brief →</Text>
+        </Pressable>
+      </View>
+      <View style={styles.briefPills}>
+        {phase.foodFocus.map((f) => (
+          <View key={f} style={[styles.briefPill, { backgroundColor: `${phase.color}15`, borderColor: `${phase.color}25` }]}>
+            <Text style={[styles.briefPillText, { color: phase.color }]}>{f}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={styles.briefWins}>
+        {phase.easyWins.slice(0, 3).map((win, i) => (
+          <View key={i} style={styles.briefWinRow}>
+            <View style={[styles.briefWinDot, { backgroundColor: `${phase.color}50` }]} />
+            <Text style={styles.briefWinText}>{win}</Text>
+          </View>
+        ))}
+      </View>
+    </GlowCard>
+  );
+}
+
 export default function TodayScreen() {
   const router = useRouter();
   const profile = useAppStore((s) => s.profile);
@@ -287,6 +324,9 @@ export default function TodayScreen() {
         <View style={styles.sectionCard}>
           <CycleCard />
         </View>
+
+        {/* Daily brief */}
+        <DailyBriefCard />
 
         {/* Macro rings */}
         <GlowCard style={styles.sectionCard} delay={0.1}>
@@ -680,6 +720,20 @@ const styles = StyleSheet.create({
     fontSize: TYPE.body,
     color: DARK_THEME.textMuted,
   },
+  // Daily brief card
+  briefHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  briefPhaseRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  briefEmoji: { fontSize: 18 },
+  briefPhaseName: { fontSize: TYPE.body, fontWeight: "700" },
+  briefSeeMore: { fontSize: TYPE.sm, fontWeight: "600" },
+  briefPills: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
+  briefPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16, borderWidth: 1 },
+  briefPillText: { fontSize: 11, fontWeight: "600" },
+  briefWins: { gap: 8 },
+  briefWinRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  briefWinDot: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
+  briefWinText: { fontSize: TYPE.sm, color: DARK_THEME.textPrimary },
+
   emptyLog: {
     alignItems: "center",
     paddingVertical: 24,

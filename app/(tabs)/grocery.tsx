@@ -16,6 +16,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { DARK_THEME } from "@/constants/theme";
 import { GlowCard } from "@/components/GlowCard";
 import { GroceryItem } from "@/types";
+import { PHASE_INFO } from "@/constants/cycle";
 
 const CATEGORIES = ["Protein", "Vegetables", "Fruits", "Grains", "Dairy", "Seeds & Nuts", "Treats", "Pantry", "Other"];
 
@@ -199,7 +200,20 @@ export default function GroceryScreen() {
   const planGroceryItems = useAppStore((s) => s.planGroceryItems);
   const togglePlanGroceryItem = useAppStore((s) => s.togglePlanGroceryItem);
   const removePlanGroceryItem = useAppStore((s) => s.removePlanGroceryItem);
+  const addGroceryItem = useAppStore((s) => s.addGroceryItem);
+  const currentPhase = useAppStore((s) => s.currentPhase);
   const accentColor = useAppStore((s) => s.accentColor());
+
+  const phase = PHASE_INFO[currentPhase];
+
+  const handleAddPhaseFoods = () => {
+    const existing = new Set([...groceryItems, ...planGroceryItems].map((i) => i.name.toLowerCase()));
+    phase.easyWins.forEach((win) => {
+      if (!existing.has(win.toLowerCase())) {
+        addGroceryItem({ id: Date.now().toString() + Math.random(), name: win, category: "Other", checked: false });
+      }
+    });
+  };
 
   const [showChecked, setShowChecked] = useState(true);
   const [planExpanded, setPlanExpanded] = useState(true);
@@ -233,11 +247,27 @@ export default function GroceryScreen() {
       >
         {/* Header */}
         <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.title}>Grocery List</Text>
-            <Text style={styles.subtitle}>Auto-generated from your weekly plan 🛒</Text>
+            <Text style={styles.subtitle}>
+              Want to stock up on {phase.label.toLowerCase()} foods this week? Here's a simple list
+            </Text>
           </View>
           <Ionicons name="cart" size={22} color={accentColor} />
+        </Animated.View>
+
+        {/* Phase foods shortcut */}
+        <Animated.View entering={FadeInDown.delay(50).duration(400)}>
+          <Pressable
+            onPress={handleAddPhaseFoods}
+            style={[styles.phaseFoodsBtn, { backgroundColor: `${phase.color}12`, borderColor: `${phase.color}30` }]}
+          >
+            <Text style={styles.phaseFoodsEmoji}>{phase.emoji}</Text>
+            <Text style={[styles.phaseFoodsBtnText, { color: phase.color }]}>
+              Add {phase.label.split(" ")[0].toLowerCase()} phase foods to list
+            </Text>
+            <Ionicons name="add-circle-outline" size={18} color={phase.color} />
+          </Pressable>
         </Animated.View>
 
         {/* Progress */}
@@ -346,7 +376,14 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 16, paddingTop: 12 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 },
   title: { fontFamily: "Georgia", fontSize: 26, color: DARK_THEME.textPrimary, fontWeight: "600" },
-  subtitle: { fontSize: 13, color: DARK_THEME.textSecondary, marginTop: 4 },
+  subtitle: { fontSize: 12, color: DARK_THEME.textSecondary, marginTop: 4, lineHeight: 17, paddingRight: 8 },
+  phaseFoodsBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 14, paddingVertical: 11,
+    borderRadius: 14, borderWidth: 1, marginBottom: 12,
+  },
+  phaseFoodsEmoji: { fontSize: 16 },
+  phaseFoodsBtnText: { flex: 1, fontSize: 13, fontWeight: "600" },
 
   // Progress
   progressCard: { marginBottom: 12 },

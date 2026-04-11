@@ -9,6 +9,8 @@ export const PHASE_INFO: Record<
     foodFocus: string[];
     eat: string[];
     avoid: string[];
+    easyWins: string[];
+    insight: string;
   }
 > = {
   menstrual: {
@@ -30,6 +32,15 @@ export const PHASE_INFO: Record<
       "Processed sugar",
       "Very salty foods",
     ],
+    easyWins: [
+      "Eggs any style",
+      "Spinach or kale in anything",
+      "Tinned salmon or sardines",
+      "Dark chocolate as a treat",
+      "Sweet potato as a side",
+      "Ginger or turmeric tea",
+    ],
+    insight: "Iron drops during your period — these foods replenish without being heavy on digestion.",
   },
   follicular: {
     emoji: "🌱",
@@ -45,6 +56,15 @@ export const PHASE_INFO: Record<
       "Chicken",
     ],
     avoid: ["Heavy fried foods", "Excess dairy", "Refined carbs"],
+    easyWins: [
+      "Avocado on toast or in a salad",
+      "Eggs for breakfast",
+      "Kimchi or sauerkraut on the side",
+      "Citrus in your water or dressing",
+      "Grilled chicken",
+      "Swap white bread for sourdough",
+    ],
+    insight: "Estrogen is rising and your body absorbs nutrients well — lighter, fresher foods feel great right now.",
   },
   ovulatory: {
     emoji: "✨",
@@ -60,6 +80,15 @@ export const PHASE_INFO: Record<
       "Bell peppers",
     ],
     avoid: ["Excess alcohol", "Processed foods", "Trans fats"],
+    easyWins: [
+      "Raw veggie snacks or a big salad",
+      "Berries in yogurt or on the side",
+      "Flaxseeds sprinkled on anything",
+      "Salmon or tuna",
+      "Quinoa as your grain",
+      "Bell peppers raw or roasted",
+    ],
+    insight: "Energy peaks this week — antioxidant-rich foods help your body manage the estrogen surge.",
   },
   luteal: {
     emoji: "🌙",
@@ -80,6 +109,15 @@ export const PHASE_INFO: Record<
       "Carbonated drinks",
       "Artificial sweeteners",
     ],
+    easyWins: [
+      "Brown rice or sweet potato as your carb",
+      "Turkey in a sandwich or salad",
+      "Dark chocolate (genuinely helps)",
+      "Banana as a snack",
+      "Chickpeas in a salad or curry",
+      "Pumpkin seeds on anything",
+    ],
+    insight: "Progesterone rises and can dip serotonin — complex carbs and magnesium foods help keep your mood steady.",
   },
 };
 
