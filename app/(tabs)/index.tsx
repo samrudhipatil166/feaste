@@ -158,7 +158,7 @@ export default function HomeScreen() {
   // ── Actions ────────────────────────────────────────────────────────────────
   const tapChip = (win: string) => {
     setLogPrefill(win);
-    router.push("/(tabs)/log");
+    router.navigate("/(tabs)/log");
   };
 
   const vitaminNudgeTimingLabel =
@@ -229,7 +229,7 @@ export default function HomeScreen() {
                     <Text style={styles.phaseDay}>Day {cycleDay} of {profile.cycleLength}</Text>
                   </View>
                 </View>
-                <Pressable onPress={() => router.push("/(tabs)/plan")}>
+                <Pressable onPress={() => router.navigate("/(tabs)/plan")}>
                   <Text style={styles.seePlanText}>see plan →</Text>
                 </Pressable>
               </View>
@@ -374,7 +374,7 @@ export default function HomeScreen() {
                   </View>
 
                   <Pressable
-                    onPress={() => router.push("/(tabs)/log")}
+                    onPress={() => router.navigate("/(tabs)/log")}
                     style={[styles.logMealBtn, { backgroundColor: accentColor }]}
                   >
                     <Text style={[styles.logMealBtnText, { color: BTN_TEXT }]}>📷  Log a meal</Text>
@@ -436,7 +436,7 @@ export default function HomeScreen() {
             {/* Action row */}
             <Animated.View entering={FadeInDown.delay(240).duration(400)} style={styles.actionRow}>
               <Pressable
-                onPress={() => router.push("/(tabs)/log")}
+                onPress={() => router.navigate("/(tabs)/log")}
                 style={[styles.actionLogBtn, { backgroundColor: accentColor }]}
               >
                 <Text style={[styles.actionLogBtnText, { color: BTN_TEXT }]}>📷  Log meal</Text>
