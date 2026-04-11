@@ -260,13 +260,13 @@ export default function GroceryScreen() {
         <Animated.View entering={FadeInDown.delay(50).duration(400)}>
           <Pressable
             onPress={handleAddPhaseFoods}
-            style={[styles.phaseFoodsBtn, { backgroundColor: `${phase.color}12`, borderColor: `${phase.color}30` }]}
+            style={[styles.phaseFoodsBtn, { backgroundColor: `${accentColor}10`, borderColor: `${accentColor}25` }]}
           >
             <Text style={styles.phaseFoodsEmoji}>{phase.emoji}</Text>
-            <Text style={[styles.phaseFoodsBtnText, { color: phase.color }]}>
+            <Text style={[styles.phaseFoodsBtnText, { color: accentColor }]}>
               Add {phase.label.split(" ")[0].toLowerCase()} phase foods to list
             </Text>
-            <Ionicons name="add-circle-outline" size={18} color={phase.color} />
+            <Ionicons name="add-circle-outline" size={18} color={accentColor} />
           </Pressable>
         </Animated.View>
 

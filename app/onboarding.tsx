@@ -21,7 +21,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useAppStore } from "@/store/useAppStore";
-import { DARK_THEME, GOAL_COLORS, GOAL_LABELS, TYPE } from "@/constants/theme";
+import { ACCENT, DARK_THEME, GOAL_LABELS, TYPE } from "@/constants/theme";
 import { GoalType } from "@/types";
 import { supabase } from "@/lib/supabase";
 
@@ -99,7 +99,7 @@ export default function OnboardingScreen() {
   const [carbsGoal, setCarbsGoal] = useState("220");
   const [fatGoal, setFatGoal] = useState("65");
 
-  const accentColor = GOAL_COLORS[goal];
+  const accentColor = ACCENT;
 
   const GOAL_MACRO_PRESETS: Record<GoalType, { cal: string; protein: string; carbs: string; fat: string }> = {
     wellness:   { cal: "1900", protein: "130", carbs: "220", fat: "65" },
@@ -233,13 +233,13 @@ export default function OnboardingScreen() {
             style={[
               styles.goalCard,
               goal === g.key && {
-                backgroundColor: `${GOAL_COLORS[g.key]}15`,
-                borderColor: `${GOAL_COLORS[g.key]}40`,
+                backgroundColor: `${ACCENT}12`,
+                borderColor: `${ACCENT}40`,
               },
             ]}
           >
             <Text style={styles.goalEmoji}>{g.emoji}</Text>
-            <Text style={[styles.goalLabel, goal === g.key && { color: GOAL_COLORS[g.key] }]}>
+            <Text style={[styles.goalLabel, goal === g.key && { color: ACCENT }]}>
               {GOAL_LABELS[g.key]}
             </Text>
             <Text style={styles.goalDesc}>{g.desc}</Text>
@@ -520,7 +520,7 @@ export default function OnboardingScreen() {
               allergies.includes(a) && { backgroundColor: "rgba(244,114,182,0.15)", borderColor: "rgba(244,114,182,0.4)" },
             ]}
           >
-            <Text style={[styles.pillText, allergies.includes(a) && { color: "#f472b6" }]}>{a}</Text>
+            <Text style={[styles.pillText, allergies.includes(a) && { color: ACCENT }]}>{a}</Text>
           </Pressable>
         ))}
       </View>

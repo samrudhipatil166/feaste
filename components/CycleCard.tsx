@@ -18,7 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { useAppStore } from "@/store/useAppStore";
 import { PHASE_INFO } from "@/constants/cycle";
-import { DARK_THEME } from "@/constants/theme";
+import { ACCENT, DARK_THEME } from "@/constants/theme";
 import { GlowCard } from "./GlowCard";
 
 
@@ -47,7 +47,7 @@ export function CycleCard() {
   }));
 
   return (
-    <GlowCard glowColor={phase.color}>
+    <GlowCard>
       {/* Header row */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -55,7 +55,7 @@ export function CycleCard() {
             {phase.emoji}
           </Animated.Text>
           <View>
-            <Text style={[styles.phaseLabel, { color: phase.color }]}>
+            <Text style={styles.phaseLabel}>
               {phase.label}
             </Text>
             <Text style={styles.dayLabel}>
@@ -66,9 +66,9 @@ export function CycleCard() {
         <View style={styles.headerRight}>
           <Pressable
             onPress={() => router.push("/period-log")}
-            style={[styles.iconBtn, { backgroundColor: `${phase.color}15`, borderColor: `${phase.color}25` }]}
+            style={styles.iconBtn}
           >
-            <Ionicons name="calendar-outline" size={14} color={phase.color} />
+            <Ionicons name="calendar-outline" size={14} color={DARK_THEME.textMuted} />
           </Pressable>
         </View>
       </View>
@@ -78,11 +78,7 @@ export function CycleCard() {
         <Animated.View
           style={[
             styles.progressFill,
-            {
-              width: `${progress * 100}%`,
-              backgroundColor: phase.color,
-              shadowColor: phase.color,
-            },
+            { width: `${progress * 100}%`, backgroundColor: ACCENT },
           ]}
         />
         {[0.18, 0.5, 0.6].map((p) => (
@@ -119,12 +115,9 @@ export function CycleCard() {
 
       {/* Food focus pills */}
       <View style={styles.pillRow}>
-        {phase.foodFocus.map((f, i) => (
-          <View
-            key={f}
-            style={[styles.pill, { backgroundColor: `${phase.color}15`, borderColor: `${phase.color}25` }]}
-          >
-            <Text style={[styles.pillText, { color: phase.color }]}>{f}</Text>
+        {phase.foodFocus.map((f) => (
+          <View key={f} style={styles.pill}>
+            <Text style={styles.pillText}>{f}</Text>
           </View>
         ))}
       </View>
@@ -178,6 +171,7 @@ const styles = StyleSheet.create({
     fontFamily: "Georgia",
     fontSize: 15,
     fontWeight: "600",
+    color: DARK_THEME.textPrimary,
   },
   dayLabel: {
     fontSize: 12,
@@ -195,6 +189,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.10)",
   },
   progressTrack: {
     height: 8,
@@ -207,9 +203,6 @@ const styles = StyleSheet.create({
   progressFill: {
     height: "100%",
     borderRadius: 4,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
   },
   progressMarker: {
     position: "absolute",
@@ -237,10 +230,13 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 20,
     borderWidth: 1,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.10)",
   },
   pillText: {
     fontSize: 11,
     fontWeight: "500",
+    color: "rgba(255,255,255,0.60)",
   },
   expandedContent: {
     marginTop: 4,

@@ -53,18 +53,18 @@ export default function PlanScreen() {
 
         {/* Phase card */}
         <Animated.View entering={FadeInDown.delay(60).duration(400)}>
-          <GlowCard glowColor={phase.color} style={styles.card}>
+          <GlowCard style={styles.card}>
             <View style={styles.phaseRow}>
               <Text style={styles.phaseEmoji}>{phase.emoji}</Text>
               <View style={styles.phaseText}>
-                <Text style={[styles.phaseName, { color: phase.color }]}>{phase.label}</Text>
+                <Text style={styles.phaseName}>{phase.label}</Text>
                 <Text style={styles.phaseDay}>Day {cycleDay} of {profile.cycleLength}</Text>
               </View>
             </View>
             <View style={styles.pillRow}>
               {phase.foodFocus.map((f) => (
-                <View key={f} style={[styles.pill, { backgroundColor: `${phase.color}18`, borderColor: `${phase.color}30` }]}>
-                  <Text style={[styles.pillText, { color: phase.color }]}>{f}</Text>
+                <View key={f} style={styles.pill}>
+                  <Text style={styles.pillText}>{f}</Text>
                 </View>
               ))}
             </View>
@@ -104,7 +104,7 @@ export default function PlanScreen() {
 
         {/* Insight */}
         <Animated.View entering={FadeInDown.delay(240).duration(400)}>
-          <GlowCard glowColor={accentColor} style={styles.card}>
+          <GlowCard style={styles.card}>
             <View style={styles.insightRow}>
               <Ionicons name="bulb-outline" size={16} color={accentColor} />
               <Text style={[styles.insightText, { color: accentColor }]}>{phase.insight}</Text>
@@ -139,11 +139,14 @@ const styles = StyleSheet.create({
   phaseRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
   phaseEmoji: { fontSize: 28 },
   phaseText: { flex: 1 },
-  phaseName: { fontSize: 17, fontWeight: "700" },
+  phaseName: { fontSize: 17, fontWeight: "700", color: DARK_THEME.textPrimary },
   phaseDay: { fontSize: TYPE.sm, color: DARK_THEME.textMuted, marginTop: 2 },
   pillRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  pill: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
-  pillText: { fontSize: TYPE.sm, fontWeight: "600" },
+  pill: {
+    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1,
+    backgroundColor: "rgba(255,255,255,0.06)", borderColor: "rgba(255,255,255,0.10)",
+  },
+  pillText: { fontSize: TYPE.sm, fontWeight: "500", color: "rgba(255,255,255,0.60)" },
 
   sectionTitle: {
     fontFamily: "Georgia", fontSize: 16,

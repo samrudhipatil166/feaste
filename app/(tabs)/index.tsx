@@ -204,27 +204,27 @@ function DailyBriefCard() {
   const phase = PHASE_INFO[currentPhase];
 
   return (
-    <GlowCard glowColor={phase.color} style={styles.sectionCard}>
+    <GlowCard style={styles.sectionCard}>
       <View style={styles.briefHeader}>
         <View style={styles.briefPhaseRow}>
           <Text style={styles.briefEmoji}>{phase.emoji}</Text>
-          <Text style={[styles.briefPhaseName, { color: phase.color }]}>{phase.label}</Text>
+          <Text style={styles.briefPhaseName}>{phase.label}</Text>
         </View>
         <Pressable onPress={() => router.push("/(tabs)/plan")}>
-          <Text style={[styles.briefSeeMore, { color: phase.color }]}>Full brief →</Text>
+          <Text style={[styles.briefSeeMore, { color: accentColor }]}>Full brief →</Text>
         </Pressable>
       </View>
       <View style={styles.briefPills}>
         {phase.foodFocus.map((f) => (
-          <View key={f} style={[styles.briefPill, { backgroundColor: `${phase.color}15`, borderColor: `${phase.color}25` }]}>
-            <Text style={[styles.briefPillText, { color: phase.color }]}>{f}</Text>
+          <View key={f} style={styles.briefPill}>
+            <Text style={styles.briefPillText}>{f}</Text>
           </View>
         ))}
       </View>
       <View style={styles.briefWins}>
         {phase.easyWins.slice(0, 3).map((win, i) => (
           <View key={i} style={styles.briefWinRow}>
-            <View style={[styles.briefWinDot, { backgroundColor: `${phase.color}50` }]} />
+            <View style={styles.briefWinDot} />
             <Text style={styles.briefWinText}>{win}</Text>
           </View>
         ))}
@@ -724,14 +724,17 @@ const styles = StyleSheet.create({
   briefHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   briefPhaseRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   briefEmoji: { fontSize: 18 },
-  briefPhaseName: { fontSize: TYPE.body, fontWeight: "700" },
+  briefPhaseName: { fontSize: TYPE.body, fontWeight: "700", color: DARK_THEME.textPrimary },
   briefSeeMore: { fontSize: TYPE.sm, fontWeight: "600" },
   briefPills: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
-  briefPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16, borderWidth: 1 },
-  briefPillText: { fontSize: 11, fontWeight: "600" },
+  briefPill: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16,
+    borderWidth: 1, backgroundColor: "rgba(255,255,255,0.06)", borderColor: "rgba(255,255,255,0.10)",
+  },
+  briefPillText: { fontSize: 11, fontWeight: "500", color: "rgba(255,255,255,0.60)" },
   briefWins: { gap: 8 },
   briefWinRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  briefWinDot: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
+  briefWinDot: { width: 6, height: 6, borderRadius: 3, flexShrink: 0, backgroundColor: "rgba(255,255,255,0.25)" },
   briefWinText: { fontSize: TYPE.sm, color: DARK_THEME.textPrimary },
 
   emptyLog: {

@@ -14,7 +14,7 @@ import {
 import { useRouter } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { supabase } from "@/lib/supabase";
-import { DARK_THEME, GOAL_COLORS, TYPE } from "@/constants/theme";
+import { ACCENT, DARK_THEME, TYPE } from "@/constants/theme";
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -24,7 +24,7 @@ export default function SignupScreen() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  const accentColor = GOAL_COLORS.wellness;
+  const accentColor = ACCENT;
 
   const handleSignup = async () => {
     setErrorMsg("");

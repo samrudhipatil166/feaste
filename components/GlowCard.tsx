@@ -40,18 +40,11 @@ export function GlowCard({
   };
 
   const cardStyle: ViewStyle = {
-    backgroundColor: DARK_THEME.cardBg,
+    backgroundColor: "rgba(255,255,255,0.03)",
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: glowColor
-      ? `${glowColor}25`
-      : DARK_THEME.borderColor,
+    borderColor: "rgba(255,255,255,0.07)",
     ...(noPadding ? {} : { padding: 16 }),
-    shadowColor: glowColor ?? "transparent",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: glowColor ? 0.3 : 0,
-    shadowRadius: 20,
-    elevation: glowColor ? 8 : 0,
   };
 
   const content = (

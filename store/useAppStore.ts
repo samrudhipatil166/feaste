@@ -11,7 +11,7 @@ import {
   UserProfile,
 } from "@/types";
 import { getPhaseForDay, getPhaseForDayIrregular, DEFAULT_VITAMINS } from "@/constants/cycle";
-import { GOAL_COLORS, GOAL_GLOWS, DARK_THEME } from "@/constants/theme";
+import { ACCENT } from "@/constants/theme";
 
 const DEFAULT_GROCERY: GroceryItem[] = [
   { id: "1", name: "Salmon fillets", category: "Protein", checked: false },
@@ -262,8 +262,8 @@ export const useAppStore = create<AppStore>()(
         })),
 
       // Derived
-      accentColor: () => GOAL_COLORS[get().profile.goal],
-      glowColor: () => GOAL_GLOWS[get().profile.goal],
+      accentColor: () => ACCENT,
+      glowColor: () => "rgba(251,209,104,0.08)",
       currentCycleDay: () => {
         const { profile } = get();
         if (!profile.lastPeriodDate) return profile.cycleDay;

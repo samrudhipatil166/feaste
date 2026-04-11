@@ -88,9 +88,9 @@ function AnalysisResultCard({
         <View style={styles.macroGrid}>
           {[
             { label: "Calories", value: `${result.calories}`, unit: "kcal", color: accentColor },
-            { label: "Protein", value: `${result.protein}`, unit: "g", color: "#4ECDC4" },
-            { label: "Carbs", value: `${result.carbs}`, unit: "g", color: "#FBD168" },
-            { label: "Fat", value: `${result.fat}`, unit: "g", color: "#f472b6" },
+            { label: "Protein", value: `${result.protein}`, unit: "g", color: accentColor },
+            { label: "Carbs", value: `${result.carbs}`, unit: "g", color: accentColor },
+            { label: "Fat", value: `${result.fat}`, unit: "g", color: accentColor },
           ].map((m) => (
             <View key={m.label} style={styles.macroCell}>
               <Text style={[styles.macroCellValue, { color: m.color }]}>{m.value}</Text>

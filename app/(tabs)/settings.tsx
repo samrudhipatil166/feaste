@@ -6,7 +6,7 @@ import {
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "@/store/useAppStore";
-import { DARK_THEME, GOAL_COLORS, GOAL_LABELS, TYPE } from "@/constants/theme";
+import { ACCENT, DARK_THEME, GOAL_LABELS, TYPE } from "@/constants/theme";
 import { supabase } from "@/lib/supabase";
 import { GlowCard } from "@/components/GlowCard";
 import { GoalType } from "@/types";
@@ -174,15 +174,14 @@ export default function SettingsScreen() {
             <View style={styles.goalGrid}>
               {GOALS.map((g) => {
                 const active = profile.goal === g.key;
-                const color = GOAL_COLORS[g.key];
                 return (
                   <Pressable
                     key={g.key}
                     onPress={() => updateProfile({ goal: g.key })}
-                    style={[styles.goalBtn, active && { borderColor: `${color}60`, backgroundColor: `${color}12` }]}
+                    style={[styles.goalBtn, active && { borderColor: `${ACCENT}50`, backgroundColor: `${ACCENT}10` }]}
                   >
                     <Text style={styles.goalEmoji}>{g.emoji}</Text>
-                    <Text style={[styles.goalLabel, active && { color }]}>{g.label}</Text>
+                    <Text style={[styles.goalLabel, active && { color: ACCENT }]}>{g.label}</Text>
                   </Pressable>
                 );
               })}
