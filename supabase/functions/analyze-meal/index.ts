@@ -6,23 +6,51 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const BREAKDOWN_FORMAT = `{
-  "name": "overall meal name",
-  "protein": total_grams,
-  "carbs": total_grams,
-  "fat": total_grams,
-  "confidence": 0_to_1,
-  "breakdown": [
-    { "name": "food item + portion e.g. Rice pilaf (~180g)", "protein": grams, "carbs": grams, "fat": grams },
-    { "name": "food item + portion e.g. Köfte meatballs (3 pcs ~120g)", "protein": grams, "carbs": grams, "fat": grams }
-  ]
+const PHASE_CONTEXT: Record<string, string> = {
+  menstrual:  "the menstrual phase (iron, magnesium and omega-3 needs are elevated; warming restorative foods are ideal)",
+  follicular: "the follicular phase (energy is rising; fresh light foods, fermented foods and B vitamins are great)",
+  ovulatory:  "the ovulatory phase (peak energy; antioxidants, fibre and light carbs are ideal)",
+  luteal:     "the luteal phase (progesterone rises; complex carbs, magnesium and serotonin-boosting foods help mood and cravings)",
+};
+
+const VALID_BADGES = [
+  "iron-rich", "high magnesium", "high fibre", "good fats",
+  "high protein", "antioxidant-rich", "gut-friendly", "blood sugar friendly",
+];
+
+function buildFormat(phase?: string): string {
+  const phaseDesc = phase && PHASE_CONTEXT[phase]
+    ? PHASE_CONTEXT[phase]
+    : "their current cycle phase";
+
+  return `{
+  "name": "overall meal name — brief and natural",
+  "protein": total_grams_number,
+  "carbs": total_grams_number,
+  "fat": total_grams_number,
+  "fibre": total_grams_number,
+  "confidence": 0_to_1_number,
+  "ingredients": [
+    {
+      "name": "Ingredient name with estimated weight e.g. Rolled oats (~80g)",
+      "protein": grams_number,
+      "carbs": grams_number,
+      "fat": grams_number,
+      "fibre": grams_number
+    }
+  ],
+  "phaseNote": "One short warm casual sentence — like a knowledgeable friend — connecting this meal to ${phaseDesc}. Never clinical. e.g. 'The oats here give you a slow serotonin lift which is exactly what you need right now.'",
+  "phaseBadge": "Exactly one of: iron-rich, high magnesium, high fibre, good fats, high protein, antioxidant-rich, gut-friendly, blood sugar friendly — or null if none clearly applies"
 }
 
 Rules:
-- List every distinct food item visible as its own entry in breakdown
-- Include the estimated portion/weight in the item name
-- The totals (protein/carbs/fat) must equal the sum of the breakdown entries
-- Do NOT include a calories field — calories are calculated from macros as protein×4 + carbs×4 + fat×9`;
+- List every distinct food item as its own entry in ingredients
+- Include the estimated portion/weight in each ingredient name
+- The totals (protein/carbs/fat/fibre) must equal the sum of the ingredient entries
+- Do NOT include a calories field — calories are calculated from macros as protein×4 + carbs×4 + fat×9
+- phaseNote must be conversational and warm, never prescriptive or clinical
+- phaseBadge must be exactly one of the valid options above, or null — never make up a badge`;
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -33,7 +61,8 @@ Deno.serve(async (req: Request) => {
     const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
     if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
 
-    const { type, description, image } = await req.json();
+    const { type, description, image, phase } = await req.json();
+    const format = buildFormat(phase);
 
     let userContent: unknown;
 
@@ -51,16 +80,16 @@ Deno.serve(async (req: Request) => {
           type: "text",
           text: `Analyse this meal photo. Identify every food item on the plate and estimate macros for each one separately.${description ? `\nUser added context: "${description}"` : ""}
 
-Return ONLY valid JSON, no other text:
-${BREAKDOWN_FORMAT}`,
+Return ONLY valid JSON, no markdown, no other text:
+${format}`,
         },
       ];
     } else {
       userContent = `Analyse this meal and estimate macros for each food component separately.
 Description: "${description}"
 
-Return ONLY valid JSON, no other text:
-${BREAKDOWN_FORMAT}`;
+Return ONLY valid JSON, no markdown, no other text:
+${format}`;
     }
 
     const controller = new AbortController();
@@ -76,7 +105,7 @@ ${BREAKDOWN_FORMAT}`;
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 1024,
+        max_tokens: 1500,
         messages: [{ role: "user", content: userContent }],
       }),
     });
@@ -95,12 +124,34 @@ ${BREAKDOWN_FORMAT}`;
     if (!jsonMatch) throw new Error("No JSON found in response");
     const result = JSON.parse(jsonMatch[0]);
 
-    // Enforce: totals = sum of breakdown
-    if (Array.isArray(result.breakdown) && result.breakdown.length > 0) {
-      result.protein = result.breakdown.reduce((s: number, i: { protein?: number }) => s + (i.protein ?? 0), 0);
-      result.carbs   = result.breakdown.reduce((s: number, i: { carbs?: number })   => s + (i.carbs   ?? 0), 0);
-      result.fat     = result.breakdown.reduce((s: number, i: { fat?: number })     => s + (i.fat     ?? 0), 0);
+    // Enforce: totals = sum of ingredients
+    if (Array.isArray(result.ingredients) && result.ingredients.length > 0) {
+      result.protein = result.ingredients.reduce((s: number, i: { protein?: number }) => s + (i.protein ?? 0), 0);
+      result.carbs   = result.ingredients.reduce((s: number, i: { carbs?: number })   => s + (i.carbs   ?? 0), 0);
+      result.fat     = result.ingredients.reduce((s: number, i: { fat?: number })     => s + (i.fat     ?? 0), 0);
+      result.fibre   = result.ingredients.reduce((s: number, i: { fibre?: number })   => s + (i.fibre   ?? 0), 0);
+
+      // Compute calories per ingredient from macros
+      result.ingredients = result.ingredients.map((ing: { name: string; protein?: number; carbs?: number; fat?: number; fibre?: number }) => ({
+        ...ing,
+        protein: ing.protein ?? 0,
+        carbs:   ing.carbs   ?? 0,
+        fat:     ing.fat     ?? 0,
+        fibre:   ing.fibre   ?? 0,
+        calories: Math.round((ing.protein ?? 0) * 4 + (ing.carbs ?? 0) * 4 + (ing.fat ?? 0) * 9),
+      }));
+    } else {
+      // No ingredients — init empty array
+      result.ingredients = [];
     }
+
+    // Validate phaseBadge
+    if (result.phaseBadge && !VALID_BADGES.includes(result.phaseBadge)) {
+      result.phaseBadge = null;
+    }
+
+    // Ensure fibre is a number
+    result.fibre = result.fibre ?? 0;
 
     return new Response(JSON.stringify({ ok: true, ...result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -108,7 +159,6 @@ ${BREAKDOWN_FORMAT}`;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("analyze-meal error:", msg);
-    // Always return 200 so the client can read the error detail
     return new Response(
       JSON.stringify({ ok: false, error: msg }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },

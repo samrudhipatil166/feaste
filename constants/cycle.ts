@@ -137,6 +137,43 @@ export function getPhaseForDayIrregular(daysSinceLastPeriod: number): CyclePhase
   return "luteal";
 }
 
+export interface PhaseVitamin {
+  id: string;
+  name: string;
+  dosage: string;
+  timing: string;
+  reason: string;
+}
+
+export const PHASE_VITAMINS: Record<CyclePhase, PhaseVitamin[]> = {
+  menstrual: [
+    { id: "iron", name: "Iron + Vitamin C", dosage: "18mg", timing: "Away from calcium", reason: "Replenishes iron lost during your period" },
+    { id: "magnesium", name: "Magnesium Glycinate", dosage: "300mg", timing: "Evening", reason: "Eases cramps and helps you sleep" },
+    { id: "omega3", name: "Omega-3", dosage: "1000mg", timing: "With meals", reason: "Reduces inflammation and period pain" },
+  ],
+  follicular: [
+    { id: "bcomplex", name: "B-Complex", dosage: "1 capsule", timing: "Morning", reason: "Supports rising estrogen and energy" },
+    { id: "zinc", name: "Zinc", dosage: "15mg", timing: "With food", reason: "Boosts follicle development and immunity" },
+    { id: "vitd", name: "Vitamin D3", dosage: "2000 IU", timing: "Morning with food", reason: "Supports mood and hormonal balance" },
+  ],
+  ovulatory: [
+    { id: "vitc", name: "Vitamin C", dosage: "500mg", timing: "With meals", reason: "Antioxidant support at estrogen peak" },
+    { id: "vite", name: "Vitamin E", dosage: "400 IU", timing: "With meals", reason: "Protects cells during ovulation" },
+    { id: "omega3", name: "Omega-3", dosage: "1000mg", timing: "With meals", reason: "Supports healthy ovulation" },
+  ],
+  luteal: [
+    { id: "magnesium", name: "Magnesium Glycinate", dosage: "300mg", timing: "Evening", reason: "Reduces PMS, bloating and mood dips" },
+    { id: "calcium", name: "Calcium", dosage: "500mg", timing: "With meals", reason: "Eases PMS symptoms significantly" },
+    { id: "b6", name: "Vitamin B6", dosage: "50mg", timing: "Morning", reason: "Supports serotonin and mood" },
+  ],
+};
+
+export const PCOS_VITAMINS: PhaseVitamin[] = [
+  { id: "inositol", name: "Inositol", dosage: "2g twice daily", timing: "Morning and evening", reason: "Improves insulin sensitivity in PCOS" },
+  { id: "magnesium", name: "Magnesium", dosage: "300mg", timing: "Evening", reason: "Reduces insulin resistance and cortisol" },
+  { id: "omega3", name: "Omega-3", dosage: "1000mg", timing: "With meals", reason: "Reduces PCOS-related inflammation" },
+];
+
 export const DEFAULT_VITAMINS = [
   {
     id: "1",

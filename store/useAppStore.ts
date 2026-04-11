@@ -67,6 +67,9 @@ interface AppStore {
   vitaminsLastReset: string; // ISO date "YYYY-MM-DD"
   toggleVitamin: (id: string) => void;
   resetVitaminsIfNewDay: () => void;
+  // Phase-specific vitamin taken tracking (synced between Log and Plan)
+  vitaminsTakenByDate: Record<string, string[]>; // { "YYYY-MM-DD": ["iron", "magnesium"] }
+  toggleVitaminTakenForDate: (id: string, date: string) => void;
 
   // ── Period logs ────────────────────────────────────────────────────────────
   periodLogs: PeriodLog[];
@@ -217,6 +220,17 @@ export const useAppStore = create<AppStore>()(
         });
       },
 
+      // Phase vitamins taken by date
+      vitaminsTakenByDate: {},
+      toggleVitaminTakenForDate: (id, date) =>
+        set((s) => {
+          const current = s.vitaminsTakenByDate[date] ?? [];
+          const next = current.includes(id)
+            ? current.filter((v) => v !== id)
+            : [...current, id];
+          return { vitaminsTakenByDate: { ...s.vitaminsTakenByDate, [date]: next } };
+        }),
+
       // Period logs
       periodLogs: [],
       addPeriodLog: (log) =>
@@ -291,6 +305,7 @@ export const useAppStore = create<AppStore>()(
         likedMeals: state.likedMeals,
         planGroceryItems: state.planGroceryItems,
         weekPlanData: state.weekPlanData,
+        vitaminsTakenByDate: state.vitaminsTakenByDate,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);

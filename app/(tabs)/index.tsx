@@ -1,284 +1,119 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  ScrollView,
-  Pressable,
-  StyleSheet,
-  Modal,
-  Linking,
+  View, Text, Pressable, StyleSheet, ScrollView, Modal, Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withRepeat,
-  withSequence,
-  FadeInDown,
-  Easing,
+  useSharedValue, useAnimatedStyle, withTiming, FadeInDown, Easing,
 } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useAppStore } from "@/store/useAppStore";
-import { DARK_THEME, MACRO_COLORS, TYPE } from "@/constants/theme";
+import { ACCENT, DARK_THEME, TYPE } from "@/constants/theme";
 import { GlowCard } from "@/components/GlowCard";
-import { MacroRing } from "@/components/MacroRing";
-import { CycleCard } from "@/components/CycleCard";
+import { ProfileSheet } from "@/components/ProfileSheet";
+import { PHASE_INFO, PHASE_VITAMINS, PCOS_VITAMINS } from "@/constants/cycle";
 import { FoodEntry } from "@/types";
-import { PHASE_INFO } from "@/constants/cycle";
 
-function CalorieBar({
-  current,
-  goal,
-  accentColor,
-}: {
-  current: number;
-  goal: number;
-  accentColor: string;
-}) {
-  const pct = Math.min(current / goal, 1);
+function MacroBar({
+  label, value, goal, accentColor,
+}: { label: string; value: number; goal: number; accentColor: string }) {
+  const pct = Math.min(value / Math.max(goal, 1), 1);
   const width = useSharedValue(0);
-
-  useEffect(() => {
-    width.value = withTiming(pct, {
-      duration: 1000,
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [pct]);
-
-  const animStyle = useAnimatedStyle(() => ({
-    width: `${width.value * 100}%` as any,
-  }));
-
-  const remaining = goal - current;
-  const pctDisplay = Math.round(pct * 100);
-
+  useEffect(() => { width.value = withTiming(pct, { duration: 800, easing: Easing.out(Easing.cubic) }); }, [pct]);
+  const animStyle = useAnimatedStyle(() => ({ width: `${width.value * 100}%` as any }));
   return (
-    <View style={{ marginTop: 16 }}>
-      <View style={styles.barTrack}>
-        <Animated.View
-          style={[
-            styles.barFill,
-            { backgroundColor: accentColor, shadowColor: accentColor },
-            animStyle,
-          ]}
-        />
+    <View style={macroBarStyles.row}>
+      <Text style={macroBarStyles.label}>{label}</Text>
+      <View style={macroBarStyles.track}>
+        <Animated.View style={[macroBarStyles.fill, { backgroundColor: accentColor }, animStyle]} />
       </View>
-      <View style={styles.barLabels}>
-        <Text style={styles.barLabelLeft}>
-          {remaining > 0 ? `${remaining} kcal remaining` : "Goal reached! 🎉"}
-        </Text>
-        <Text style={[styles.barLabelRight, { color: accentColor }]}>
-          {pctDisplay}%
-        </Text>
-      </View>
+      <Text style={macroBarStyles.value}>{value}g</Text>
     </View>
   );
 }
+const macroBarStyles = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 },
+  label: { width: 50, fontSize: TYPE.sm, color: DARK_THEME.textMuted },
+  track: { flex: 1, height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.06)", overflow: "hidden" },
+  fill: { height: "100%", borderRadius: 3 },
+  value: { width: 36, fontSize: TYPE.sm, color: DARK_THEME.textSecondary, textAlign: "right" },
+});
 
-function WaterTracker() {
-  const water = useAppStore((s) => s.waterGlasses);
-  const setWater = useAppStore((s) => s.setWater);
-
-  return (
-    <GlowCard style={styles.sectionCard} delay={0.2}>
-      <View style={styles.waterHeader}>
-        <View style={styles.waterTitleRow}>
-          <Ionicons name="water-outline" size={18} color={MACRO_COLORS.water} />
-          <Text style={styles.cardTitle}>Water</Text>
-        </View>
-        <View style={styles.waterControls}>
-          <Pressable
-            onPress={() => setWater(water - 1)}
-            style={styles.waterBtn}
-          >
-            <Ionicons name="remove" size={16} color={DARK_THEME.textSecondary} />
-          </Pressable>
-          <Text style={styles.waterCount}>{water}/8</Text>
-          <Pressable
-            onPress={() => setWater(water + 1)}
-            style={[styles.waterBtn, { backgroundColor: "rgba(96,165,250,0.15)" }]}
-          >
-            <Ionicons name="add" size={16} color={MACRO_COLORS.water} />
-          </Pressable>
-        </View>
-      </View>
-      <View style={styles.waterDots}>
-        {Array.from({ length: 8 }).map((_, i) => (
-          <View
-            key={i}
-            style={[
-              styles.waterDot,
-              {
-                backgroundColor:
-                  i < water
-                    ? MACRO_COLORS.water
-                    : "rgba(255,255,255,0.06)",
-                shadowColor: i < water ? MACRO_COLORS.water : "transparent",
-                shadowOpacity: i < water ? 0.4 : 0,
-                shadowRadius: 4,
-                shadowOffset: { width: 0, height: 0 },
-              },
-            ]}
-          />
-        ))}
-      </View>
-    </GlowCard>
-  );
-}
-
-function StreakBanner({ streak, accentColor }: { streak: number; accentColor: string }) {
-  const scale = useSharedValue(1);
-  useEffect(() => {
-    scale.value = withRepeat(
-      withSequence(
-        withTiming(1.2, { duration: 750 }),
-        withTiming(1, { duration: 750 })
-      ),
-      -1
-    );
-  }, []);
-  const emojiStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  if (streak === 0) return null;
-
-  return (
-    <Animated.View
-      entering={FadeInDown.delay(50).duration(400)}
-      style={[styles.streakBanner, { backgroundColor: `${accentColor}08`, borderColor: `${accentColor}15` }]}
-    >
-      <Animated.Text style={[styles.streakEmoji, emojiStyle]}>🔥</Animated.Text>
-      <Text style={styles.streakText} numberOfLines={1}>
-        <Text style={{ fontWeight: "700" }}>{streak}-day streak!</Text>
-        {"  "}You're on fire (not literally)
-      </Text>
-      <View style={styles.streakDots}>
-        {Array.from({ length: Math.min(streak, 7) }).map((_, i) => (
-          <View
-            key={i}
-            style={[
-              styles.streakDot,
-              {
-                backgroundColor: accentColor,
-                opacity: 0.3 + (i / 7) * 0.7,
-              },
-            ]}
-          />
-        ))}
-      </View>
-    </Animated.View>
-  );
-}
-
-function FoodLogEntry({ entry, accentColor }: { entry: FoodEntry; accentColor: string }) {
-  const removeFoodEntry = useAppStore((s) => s.removeFoodEntry);
-
-  return (
-    <View style={styles.logEntry}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.logName}>{entry.name}</Text>
-        <Text style={styles.logMeta}>
-          {entry.time} · {entry.meal}
-        </Text>
-      </View>
-      <View style={styles.logRight}>
-        <Text style={[styles.logCal, { color: accentColor }]}>
-          {entry.calories} kcal
-        </Text>
-        <Text style={styles.logMacros}>
-          P:{entry.protein} C:{entry.carbs} F:{entry.fat}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-function DailyBriefCard() {
-  const router = useRouter();
-  const currentPhase = useAppStore((s) => s.currentPhase);
-  const accentColor = useAppStore((s) => s.accentColor());
-  const phase = PHASE_INFO[currentPhase];
-
-  return (
-    <GlowCard style={styles.sectionCard}>
-      <View style={styles.briefHeader}>
-        <View style={styles.briefPhaseRow}>
-          <Text style={styles.briefEmoji}>{phase.emoji}</Text>
-          <Text style={styles.briefPhaseName}>{phase.label}</Text>
-        </View>
-        <Pressable onPress={() => router.push("/(tabs)/plan")}>
-          <Text style={[styles.briefSeeMore, { color: accentColor }]}>Full brief →</Text>
-        </Pressable>
-      </View>
-      <View style={styles.briefPills}>
-        {phase.foodFocus.map((f) => (
-          <View key={f} style={styles.briefPill}>
-            <Text style={styles.briefPillText}>{f}</Text>
-          </View>
-        ))}
-      </View>
-      <View style={styles.briefWins}>
-        {phase.easyWins.slice(0, 3).map((win, i) => (
-          <View key={i} style={styles.briefWinRow}>
-            <View style={styles.briefWinDot} />
-            <Text style={styles.briefWinText}>{win}</Text>
-          </View>
-        ))}
-      </View>
-    </GlowCard>
-  );
-}
-
-export default function TodayScreen() {
-  const router = useRouter();
+export default function HomeScreen() {
   const profile = useAppStore((s) => s.profile);
   const foodLog = useAppStore((s) => s.foodLog);
-  const streak = useAppStore((s) => s.streak);
   const accentColor = useAppStore((s) => s.accentColor());
+  const currentPhase = useAppStore((s) => s.currentPhase);
   const privacyAccepted = useAppStore((s) => s.privacyAccepted);
   const setPrivacyAccepted = useAppStore((s) => s.setPrivacyAccepted);
+  const vitaminsTakenByDate = useAppStore((s) => s.vitaminsTakenByDate);
+  const toggleVitaminTakenForDate = useAppStore((s) => s.toggleVitaminTakenForDate);
+
+  const [calExpanded, setCalExpanded] = useState(false);
+  const [profileVisible, setProfileVisible] = useState(false);
+  const [profileSection, setProfileSection] = useState<string | undefined>(undefined);
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayLog = foodLog.filter((f) => f.date === todayStr || !f.date);
 
   const totalCal = todayLog.reduce((s, f) => s + f.calories, 0);
-  const totalProtein = todayLog.reduce((s, f) => s + f.protein, 0);
-  const totalCarbs = todayLog.reduce((s, f) => s + f.carbs, 0);
-  const totalFat = todayLog.reduce((s, f) => s + f.fat, 0);
+  const totalP   = todayLog.reduce((s, f) => s + f.protein, 0);
+  const totalC   = todayLog.reduce((s, f) => s + f.carbs, 0);
+  const totalF   = todayLog.reduce((s, f) => s + f.fat, 0);
 
-  const today = new Date();
-  const greeting = today.getHours() < 12
-    ? "Good morning"
-    : today.getHours() < 17
-    ? "Good afternoon"
-    : "Good evening";
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const dateStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
-  const dayStr = today.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  const cycleDay = (() => {
+    if (!profile.lastPeriodDate) return profile.cycleDay ?? 1;
+    const diff = Math.floor((Date.now() - new Date(profile.lastPeriodDate).getTime()) / 86400000);
+    return Math.min(Math.max(1, diff + 1), profile.cycleLength);
+  })();
+
+  const phase = PHASE_INFO[currentPhase];
+  const cyclePct = Math.min(cycleDay / profile.cycleLength, 1);
+
+  // Vitamins for today
+  const hasPCOS = profile.conditions.includes("PCOS");
+  const phaseVitamins = hasPCOS ? PCOS_VITAMINS : PHASE_VITAMINS[currentPhase];
+  const takenToday = vitaminsTakenByDate[todayStr] ?? [];
+
+  const openProfileSection = (section: string) => {
+    setProfileSection(section);
+    setProfileVisible(true);
+  };
+
+  // Calorie progress bar animated
+  const calPct = Math.min(totalCal / Math.max(profile.calorieGoal, 1), 1);
+  const calWidth = useSharedValue(0);
+  useEffect(() => { calWidth.value = withTiming(calPct, { duration: 900, easing: Easing.out(Easing.cubic) }); }, [calPct]);
+  const calAnimStyle = useAnimatedStyle(() => ({ width: `${calWidth.value * 100}%` as any }));
+
+  // Cycle progress bar animated
+  const cycleWidth = useSharedValue(0);
+  useEffect(() => { cycleWidth.value = withTiming(cyclePct, { duration: 900, easing: Easing.out(Easing.cubic) }); }, [cyclePct]);
+  const cycleAnimStyle = useAnimatedStyle(() => ({ width: `${cycleWidth.value * 100}%` as any }));
+
+  const SLOT_EMOJI: Record<string, string> = { breakfast: "🌅", lunch: "☀️", dinner: "🌙", snack: "🍎" };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Privacy consent — shown once, blocks use until accepted */}
+    <SafeAreaView style={styles.safe}>
+      {/* Privacy consent */}
       <Modal visible={!privacyAccepted} transparent animationType="slide">
         <View style={styles.privacyOverlay}>
           <Animated.View entering={FadeInDown.duration(400)} style={styles.privacySheet}>
             <Text style={styles.privacyTitle}>Before we begin 🌿</Text>
             <Text style={styles.privacyBody}>
-              Feaste collects and processes health-related information — including your menstrual cycle, dietary habits, and nutritional data — to personalise your experience.
+              Feaste processes health-related information — your cycle, dietary habits, and nutritional data — to personalise your experience.
             </Text>
             <View style={styles.privacyPoints}>
               {[
                 "Your data is stored securely and never sold to third parties.",
                 "Health insights are for informational purposes only, not medical advice.",
                 "Always consult a healthcare professional for medical decisions.",
-                "You can delete your data at any time from Settings.",
+                "You can delete your data at any time from your profile.",
               ].map((pt) => (
                 <View key={pt} style={styles.privacyPoint}>
                   <Text style={[styles.privacyDot, { color: accentColor }]}>·</Text>
@@ -298,475 +133,247 @@ export default function TodayScreen() {
           </Animated.View>
         </View>
       </Modal>
+
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
+        {/* Top bar */}
+        <Animated.View entering={FadeInDown.duration(400)} style={styles.topBar}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.greeting}>
-              {greeting}{" "}
-              {today.getHours() < 12 ? "🌤️" : today.getHours() < 17 ? "☀️" : "🌙"}
-            </Text>
-            <Text style={styles.dateStr}>{dayStr}</Text>
+            <Text style={styles.greeting}>{greeting}</Text>
+            <Text style={styles.dateStr}>{dateStr}</Text>
           </View>
-          <Pressable onPress={() => router.push("/(tabs)/settings")} style={styles.settingsBtn}>
-            <Ionicons name="settings-outline" size={20} color={DARK_THEME.textMuted} />
+          <Pressable onPress={() => { setProfileSection(undefined); setProfileVisible(true); }} style={styles.profileBtn}>
+            <Ionicons name="person" size={18} color={DARK_THEME.textSecondary} />
           </Pressable>
         </Animated.View>
 
-        {/* Streak */}
-        <StreakBanner streak={streak} accentColor={accentColor} />
-
-        {/* Cycle card */}
-        <View style={styles.sectionCard}>
-          <CycleCard />
-        </View>
-
-        {/* Daily brief */}
-        <DailyBriefCard />
-
-        {/* Macro rings */}
-        <GlowCard style={styles.sectionCard} delay={0.1}>
-          <View style={styles.macroHeader}>
-            <Text style={styles.cardTitle}>Today's Macros</Text>
-            <Text style={[styles.calDisplay, { color: accentColor }]}>
-              {totalCal} / {profile.calorieGoal} kcal
-            </Text>
-          </View>
-          <View style={styles.ringsRow}>
-            <MacroRing
-              value={totalProtein}
-              max={profile.proteinGoal}
-              color={MACRO_COLORS.protein}
-              label="Protein"
-              unit="g"
-            />
-            <MacroRing
-              value={totalCarbs}
-              max={profile.carbsGoal}
-              color={MACRO_COLORS.carbs}
-              label="Carbs"
-              unit="g"
-            />
-            <MacroRing
-              value={totalFat}
-              max={profile.fatGoal}
-              color={MACRO_COLORS.fat}
-              label="Fat"
-              unit="g"
-            />
-          </View>
-          <CalorieBar
-            current={totalCal}
-            goal={profile.calorieGoal}
-            accentColor={accentColor}
-          />
-        </GlowCard>
-
-        {/* Meals today by slot */}
-        <GlowCard style={styles.sectionCard} delay={0.25}>
-          <Text style={styles.cardTitle}>Meals Today</Text>
-          <View style={styles.mealSlots}>
-            {(["breakfast", "lunch", "dinner", "snack"] as const).map((slot) => {
-              const entries = todayLog.filter((e) => e.meal === slot);
-              const slotCal = entries.reduce((s, e) => s + e.calories, 0);
-              const SLOT_EMOJI: Record<string, string> = { breakfast: "🌅", lunch: "☀️", dinner: "🌙", snack: "🍎" };
-              return (
-                <View key={slot} style={styles.mealSlotRow}>
-                  <Text style={styles.mealSlotEmoji}>{SLOT_EMOJI[slot]}</Text>
-                  <Text style={[styles.mealSlotName, entries.length === 0 && { color: DARK_THEME.textMuted }]}>
-                    {slot.charAt(0).toUpperCase() + slot.slice(1)}
-                  </Text>
-                  {entries.length > 0 ? (
-                    <Text style={[styles.mealSlotCal, { color: accentColor }]}>{slotCal} kcal</Text>
-                  ) : (
-                    <Text style={styles.mealSlotEmpty}>—</Text>
-                  )}
+        {/* Phase card */}
+        <Animated.View entering={FadeInDown.delay(60).duration(400)}>
+          <GlowCard style={styles.card} noPadding>
+            <View style={styles.phaseInner}>
+              <View style={styles.phaseTopRow}>
+                <View style={styles.phaseLeft}>
+                  <Text style={styles.phaseEmoji}>{phase.emoji}</Text>
+                  <Text style={styles.phaseName}>{phase.label}</Text>
                 </View>
-              );
-            })}
-          </View>
-        </GlowCard>
-
-        {/* Recent food log */}
-        <GlowCard style={styles.sectionCard} delay={0.3}>
-          <View style={styles.recentEatsHeader}>
-            <Text style={styles.cardTitle}>Recent Eats</Text>
-            <Pressable
-              onPress={() => router.push("/(tabs)/log")}
-              style={[styles.logShortcut, { backgroundColor: `${accentColor}18`, borderColor: `${accentColor}30` }]}
-            >
-              <Ionicons name="add" size={14} color={accentColor} />
-              <Text style={[styles.logShortcutText, { color: accentColor }]}>Log food</Text>
-            </Pressable>
-          </View>
-          {todayLog.length === 0 ? (
-            <Pressable onPress={() => router.push("/(tabs)/log")} style={styles.emptyLog}>
-              <Text style={styles.emptyEmoji}>🍽️</Text>
-              <Text style={styles.emptyText}>No food logged yet today</Text>
-              <Text style={styles.emptySubtext}>Tap here or use the Log tab to add a meal</Text>
-            </Pressable>
-          ) : (
-            <View>
-              {todayLog.slice().reverse().slice(0, 5).map((entry, idx) => (
-                <Animated.View
-                  key={entry.id}
-                  entering={FadeInDown.delay(0.4 + idx * 0.08).duration(300)}
-                >
-                  <FoodLogEntry entry={entry} accentColor={accentColor} />
-                  {idx < Math.min(todayLog.length, 5) - 1 && (
-                    <View style={styles.logDivider} />
-                  )}
-                </Animated.View>
-              ))}
+                <Text style={styles.phaseDay}>Day {cycleDay} of {profile.cycleLength}</Text>
+              </View>
+              <View style={styles.progressTrack}>
+                <Animated.View style={[styles.progressFill, { backgroundColor: accentColor }, cycleAnimStyle]} />
+              </View>
+              <View style={styles.focusPillRow}>
+                {phase.foodFocus.slice(0, 3).map((f) => (
+                  <View key={f} style={styles.focusPill}>
+                    <Text style={styles.focusPillText}>{f}</Text>
+                  </View>
+                ))}
+              </View>
+              <Pressable onPress={() => openProfileSection("cycle")} style={styles.editLink}>
+                <Text style={styles.editLinkText}>edit</Text>
+              </Pressable>
             </View>
-          )}
-        </GlowCard>
+          </GlowCard>
+        </Animated.View>
 
-        {/* Bottom padding — extra to clear FAB */}
-        <View style={{ height: 80 }} />
+        {/* Calorie card — tappable, expands inline */}
+        <Animated.View entering={FadeInDown.delay(120).duration(400)}>
+          <Pressable onPress={() => setCalExpanded(!calExpanded)}>
+            <GlowCard style={styles.card} noPadding>
+              <View style={styles.calInner}>
+                {/* Collapsed header — always visible */}
+                <View style={styles.calHeaderRow}>
+                  <Text style={styles.calLabel}>Calories</Text>
+                  <Ionicons name={calExpanded ? "chevron-up" : "chevron-down"} size={16} color={DARK_THEME.textMuted} />
+                </View>
+                <Text style={styles.calNumbers}>
+                  <Text style={{ color: accentColor, fontWeight: "700", fontSize: 22 }}>{totalCal}</Text>
+                  <Text style={styles.calGoal}> / {profile.calorieGoal} kcal</Text>
+                </Text>
+                <View style={styles.progressTrack}>
+                  <Animated.View style={[styles.progressFill, { backgroundColor: accentColor }, calAnimStyle]} />
+                </View>
+                <View style={styles.macroSmallRow}>
+                  <Text style={styles.macroSmall}>P: {totalP}g</Text>
+                  <Text style={styles.macroSmallDot}>·</Text>
+                  <Text style={styles.macroSmall}>C: {totalC}g</Text>
+                  <Text style={styles.macroSmallDot}>·</Text>
+                  <Text style={styles.macroSmall}>F: {totalF}g</Text>
+                </View>
+
+                {/* Expanded content */}
+                {calExpanded && (
+                  <View style={styles.expandedSection}>
+                    <View style={styles.expandDivider} />
+
+                    {/* Macro progress bars */}
+                    <Text style={styles.expandLabel}>Macros</Text>
+                    <MacroBar label="Protein" value={totalP} goal={profile.proteinGoal} accentColor={accentColor} />
+                    <MacroBar label="Carbs" value={totalC} goal={profile.carbsGoal} accentColor={accentColor} />
+                    <MacroBar label="Fat" value={totalF} goal={profile.fatGoal} accentColor={accentColor} />
+
+                    <View style={styles.expandDivider} />
+
+                    {/* Meals logged today */}
+                    <Text style={styles.expandLabel}>Meals today</Text>
+                    {todayLog.length === 0 ? (
+                      <Text style={styles.emptyText}>Nothing logged yet</Text>
+                    ) : (
+                      todayLog.slice().reverse().map((entry) => (
+                        <View key={entry.id} style={styles.mealRow}>
+                          <Text style={styles.mealSlotEmoji}>{SLOT_EMOJI[entry.meal] ?? "🍽️"}</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.mealName} numberOfLines={1}>{entry.name}</Text>
+                            <Text style={styles.mealMacros}>P:{entry.protein}g · C:{entry.carbs}g · F:{entry.fat}g</Text>
+                          </View>
+                          <View style={{ alignItems: "flex-end" }}>
+                            <Text style={[styles.mealCal, { color: accentColor }]}>{entry.calories} kcal</Text>
+                            {entry.badge && (
+                              <View style={styles.badge}>
+                                <Text style={styles.badgeText}>{entry.badge}</Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                      ))
+                    )}
+
+                    <View style={styles.expandDivider} />
+
+                    {/* Vitamins */}
+                    <Text style={styles.expandLabel}>Vitamins today</Text>
+                    {phaseVitamins.slice(0, 3).map((v) => {
+                      const taken = takenToday.includes(v.id);
+                      return (
+                        <Pressable
+                          key={v.id}
+                          onPress={() => toggleVitaminTakenForDate(v.id, todayStr)}
+                          style={styles.vitaminRow}
+                        >
+                          <View style={[styles.vitaminCheck, taken && { backgroundColor: accentColor, borderColor: accentColor }]}>
+                            {taken && <Ionicons name="checkmark" size={12} color="#0a0e1a" />}
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.vitaminName, taken && styles.vitaminNameTaken]}>{v.name}</Text>
+                            <Text style={styles.vitaminDose}>{v.dosage} · {v.timing}</Text>
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            </GlowCard>
+          </Pressable>
+        </Animated.View>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Floating log button */}
-      <Pressable
-        onPress={() => router.push("/(tabs)/log")}
-        style={[styles.fab, { backgroundColor: accentColor }]}
-      >
-        <Ionicons name="camera" size={22} color="#0a0e1a" />
-      </Pressable>
+      <ProfileSheet
+        visible={profileVisible}
+        onClose={() => setProfileVisible(false)}
+        initialSection={profileSection}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: DARK_THEME.bg },
+  scroll: { padding: 16, paddingTop: 12 },
+
   // Privacy modal
-  privacyOverlay: {
-    flex: 1, justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.7)",
-  },
+  privacyOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.7)" },
   privacySheet: {
-    backgroundColor: DARK_THEME.cardBg,
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    backgroundColor: "#0f1525", borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 24, paddingBottom: 40,
     borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
   },
-  privacyTitle: {
-    fontFamily: "Georgia", fontSize: 22,
-    color: DARK_THEME.textPrimary, fontWeight: "600",
-    marginBottom: 12,
-  },
-  privacyBody: {
-    fontSize: 14, color: DARK_THEME.textSecondary,
-    lineHeight: 22, marginBottom: 16,
-  },
+  privacyTitle: { fontFamily: "Georgia", fontSize: 22, color: DARK_THEME.textPrimary, fontWeight: "600", marginBottom: 12 },
+  privacyBody: { fontSize: 14, color: DARK_THEME.textSecondary, lineHeight: 22, marginBottom: 16 },
   privacyPoints: { gap: 8, marginBottom: 24 },
   privacyPoint: { flexDirection: "row", gap: 8 },
   privacyDot: { fontSize: 18, lineHeight: 20 },
   privacyPointText: { flex: 1, fontSize: 13, color: DARK_THEME.textSecondary, lineHeight: 20 },
-  privacyBtn: {
-    paddingVertical: 14, borderRadius: 16,
-    alignItems: "center", marginBottom: 14,
-  },
+  privacyBtn: { paddingVertical: 14, borderRadius: 16, alignItems: "center", marginBottom: 14 },
   privacyBtnText: { fontSize: 15, fontWeight: "700", color: "#0a0e1a" },
   privacyFooter: { fontSize: 12, color: DARK_THEME.textMuted, textAlign: "center" },
   privacyLink: { fontWeight: "600" },
 
-  safeArea: {
-    flex: 1,
-    backgroundColor: DARK_THEME.bg,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingTop: 12,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  greeting: {
-    fontFamily: "Georgia",
-    fontSize: 22,
-    color: DARK_THEME.textPrimary,
-    fontWeight: "600",
-  },
-  dateStr: {
-    fontSize: 12,
-    color: DARK_THEME.textSecondary,
-    marginTop: 4,
-  },
-  settingsBtn: {
+  // Top bar
+  topBar: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 },
+  greeting: { fontFamily: "Georgia", fontSize: 22, color: DARK_THEME.textPrimary, fontWeight: "600" },
+  dateStr: { fontSize: TYPE.sm, color: DARK_THEME.textSecondary, marginTop: 3 },
+  profileBtn: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
     alignItems: "center", justifyContent: "center",
   },
-  allergyBadges: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 4,
-    maxWidth: 160,
-    justifyContent: "flex-end",
-  },
-  allergyBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-  },
-  allergyText: {
-    fontSize: 11,
-    color: DARK_THEME.textSecondary,
-  },
-  streakBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    padding: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    marginBottom: 16,
-  },
-  streakEmoji: {
-    fontSize: 20,
-  },
-  streakText: {
-    fontSize: 13,
-    color: DARK_THEME.textPrimary,
-    flex: 1,
-  },
-  streakDots: {
-    flexDirection: "row",
-    gap: 2,
-  },
-  streakDot: {
-    width: 5,
-    height: 12,
-    borderRadius: 3,
-  },
-  sectionCard: {
-    marginBottom: 12,
-  },
-  cardTitle: {
-    fontFamily: "Georgia",
-    fontSize: TYPE.lg,
-    color: DARK_THEME.textPrimary,
-    fontWeight: "600",
-  },
-  macroHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  calDisplay: {
-    fontSize: TYPE.sm,
-    fontWeight: "600",
-  },
-  ringsRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-  },
-  barTrack: {
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    overflow: "hidden",
-  },
-  barFill: {
-    height: "100%",
-    borderRadius: 5,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  barLabels: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 6,
-  },
-  barLabelLeft: {
-    fontSize: TYPE.sm,
-    color: DARK_THEME.textMuted,
-  },
-  barLabelRight: {
-    fontSize: TYPE.sm,
-    fontWeight: "600",
-  },
-  waterHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  waterTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  waterControls: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  waterBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.06)",
-  },
-  waterCount: {
-    fontSize: 15,
-    color: DARK_THEME.textPrimary,
-    minWidth: 36,
-    textAlign: "center",
-    fontWeight: "600",
-  },
-  waterDots: {
-    flexDirection: "row",
-    gap: 6,
-  },
-  waterDot: {
-    flex: 1,
-    height: 10,
-    borderRadius: 5,
-  },
-  logEntry: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-  },
-  logName: {
-    fontSize: TYPE.body,
-    color: DARK_THEME.textPrimary,
-    fontWeight: "500",
-  },
-  logMeta: {
-    fontSize: TYPE.sm,
-    color: DARK_THEME.textMuted,
-    marginTop: 2,
-    textTransform: "capitalize",
-  },
-  logRight: {
-    alignItems: "flex-end",
-  },
-  logCal: {
-    fontSize: TYPE.body,
-    fontWeight: "600",
-  },
-  logMacros: {
-    fontSize: TYPE.xs,
-    color: DARK_THEME.textMuted,
-    marginTop: 2,
-  },
-  logDivider: {
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.05)",
-  },
-  recentEatsHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  logShortcut: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  logShortcutText: {
-    fontSize: TYPE.sm,
-    fontWeight: "600",
-  },
-  mealSlots: {
-    marginTop: 12,
-    gap: 10,
-  },
-  mealSlotRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  mealSlotEmoji: {
-    fontSize: 15,
-    width: 22,
-    textAlign: "center",
-  },
-  mealSlotName: {
-    flex: 1,
-    fontSize: TYPE.body,
-    color: DARK_THEME.textPrimary,
-  },
-  mealSlotCal: {
-    fontSize: TYPE.body,
-    fontWeight: "600",
-  },
-  mealSlotEmpty: {
-    fontSize: TYPE.body,
-    color: DARK_THEME.textMuted,
-  },
-  // Daily brief card
-  briefHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  briefPhaseRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  briefEmoji: { fontSize: 18 },
-  briefPhaseName: { fontSize: TYPE.body, fontWeight: "700", color: DARK_THEME.textPrimary },
-  briefSeeMore: { fontSize: TYPE.sm, fontWeight: "600" },
-  briefPills: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
-  briefPill: {
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16,
-    borderWidth: 1, backgroundColor: "rgba(255,255,255,0.06)", borderColor: "rgba(255,255,255,0.10)",
-  },
-  briefPillText: { fontSize: 11, fontWeight: "500", color: "rgba(255,255,255,0.60)" },
-  briefWins: { gap: 8 },
-  briefWinRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  briefWinDot: { width: 6, height: 6, borderRadius: 3, flexShrink: 0, backgroundColor: "rgba(255,255,255,0.25)" },
-  briefWinText: { fontSize: TYPE.sm, color: DARK_THEME.textPrimary },
 
-  emptyLog: {
-    alignItems: "center",
-    paddingVertical: 24,
+  card: { marginBottom: 12 },
+
+  // Phase card
+  phaseInner: { padding: 16 },
+  phaseTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  phaseLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  phaseEmoji: { fontSize: 22 },
+  phaseName: { fontSize: 16, fontWeight: "700", color: DARK_THEME.textPrimary },
+  phaseDay: { fontSize: TYPE.sm, color: DARK_THEME.textMuted },
+  progressTrack: {
+    height: 4, borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    overflow: "hidden", marginBottom: 12,
   },
-  emptyEmoji: {
-    fontSize: 32,
-    marginBottom: 8,
+  progressFill: { height: "100%", borderRadius: 2 },
+  focusPillRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 8 },
+  focusPill: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.09)",
   },
-  emptyText: {
-    fontSize: TYPE.body,
-    color: DARK_THEME.textSecondary,
-    marginBottom: 4,
+  focusPillText: { fontSize: TYPE.xs, color: "rgba(255,255,255,0.55)", fontWeight: "500" },
+  editLink: { alignSelf: "flex-end" },
+  editLinkText: { fontSize: TYPE.xs, color: DARK_THEME.textMuted, letterSpacing: 0.2 },
+
+  // Calorie card
+  calInner: { padding: 16 },
+  calHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  calLabel: { fontSize: TYPE.sm, color: DARK_THEME.textMuted, fontWeight: "600", letterSpacing: 0.5 },
+  calNumbers: { marginBottom: 8 },
+  calGoal: { fontSize: 14, color: DARK_THEME.textMuted, fontWeight: "400" },
+  macroSmallRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
+  macroSmall: { fontSize: TYPE.sm, color: DARK_THEME.textSecondary },
+  macroSmallDot: { fontSize: TYPE.sm, color: "rgba(255,255,255,0.20)" },
+
+  // Expanded section
+  expandedSection: { marginTop: 4 },
+  expandDivider: { height: 1, backgroundColor: "rgba(255,255,255,0.06)", marginVertical: 14 },
+  expandLabel: {
+    fontSize: 9, color: DARK_THEME.textMuted, fontWeight: "700",
+    letterSpacing: 1.2, marginBottom: 10, textTransform: "uppercase",
   },
-  emptySubtext: {
-    fontSize: TYPE.md,
-    color: DARK_THEME.textMuted,
+  emptyText: { fontSize: TYPE.sm, color: DARK_THEME.textMuted, fontStyle: "italic" },
+
+  mealRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 10 },
+  mealSlotEmoji: { fontSize: 14, marginTop: 2 },
+  mealName: { fontSize: TYPE.sm, color: DARK_THEME.textPrimary, fontWeight: "500" },
+  mealMacros: { fontSize: TYPE.xs, color: DARK_THEME.textMuted, marginTop: 2 },
+  mealCal: { fontSize: TYPE.sm, fontWeight: "600" },
+  badge: {
+    marginTop: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
-  fab: {
-    position: "absolute",
-    bottom: 96,
-    right: 20,
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+  badgeText: { fontSize: 9, color: "rgba(255,255,255,0.50)", fontWeight: "600" },
+
+  vitaminRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
+  vitaminCheck: {
+    width: 20, height: 20, borderRadius: 10, borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.20)", alignItems: "center", justifyContent: "center",
   },
+  vitaminName: { fontSize: TYPE.sm, color: DARK_THEME.textPrimary, fontWeight: "500" },
+  vitaminNameTaken: { color: DARK_THEME.textMuted },
+  vitaminDose: { fontSize: TYPE.xs, color: DARK_THEME.textMuted, marginTop: 1 },
 });

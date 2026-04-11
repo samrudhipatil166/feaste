@@ -5,12 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "@/store/useAppStore";
 import { DARK_THEME } from "@/constants/theme";
 
-type TabName =
-  | "index"
-  | "log"
-  | "today"
-  | "plan"
-  | "grocery";
+type TabName = "index" | "log" | "plan" | "grocery";
 
 const TAB_CONFIG: {
   name: TabName;
@@ -18,15 +13,14 @@ const TAB_CONFIG: {
   icon: keyof typeof Ionicons.glyphMap;
   iconFocused: keyof typeof Ionicons.glyphMap;
 }[] = [
-  { name: "index",   label: "Home",    icon: "home-outline",      iconFocused: "home" },
-  { name: "today",   label: "Today",   icon: "nutrition-outline", iconFocused: "nutrition" },
+  { name: "index",   label: "Home",    icon: "home-outline",     iconFocused: "home" },
   { name: "log",     label: "Log",     icon: "camera-outline",   iconFocused: "camera" },
   { name: "plan",    label: "Plan",    icon: "calendar-outline", iconFocused: "calendar" },
   { name: "grocery", label: "Grocery", icon: "cart-outline",     iconFocused: "cart" },
 ];
 
 export default function TabsLayout() {
-  const accentColor = useAppStore((s) => DARK_THEME && s.accentColor());
+  const accentColor = useAppStore((s) => s.accentColor());
 
   return (
     <Tabs
@@ -55,8 +49,9 @@ export default function TabsLayout() {
           }}
         />
       ))}
+      <Tabs.Screen name="today"    options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null }} />
-      <Tabs.Screen name="history" options={{ href: null }} />
+      <Tabs.Screen name="history"  options={{ href: null }} />
     </Tabs>
   );
 }

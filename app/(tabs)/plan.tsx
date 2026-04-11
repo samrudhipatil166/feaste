@@ -1,36 +1,48 @@
-import React from "react";
+import React, { useState } from "react";
 import {
-  View, Text, Pressable, StyleSheet, ScrollView,
+  View, Text, Pressable, StyleSheet, ScrollView, Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 
 import { useAppStore } from "@/store/useAppStore";
-import { DARK_THEME, TYPE } from "@/constants/theme";
+import { ACCENT, DARK_THEME, TYPE } from "@/constants/theme";
 import { GlowCard } from "@/components/GlowCard";
-import { PHASE_INFO } from "@/constants/cycle";
+import { PHASE_INFO, getPhaseForDay, PHASE_VITAMINS, PCOS_VITAMINS } from "@/constants/cycle";
+import { CyclePhase } from "@/types";
+
+const PHASE_TAGLINE: Record<CyclePhase, string> = {
+  menstrual:  "warming, restorative",
+  follicular: "light and fresh",
+  ovulatory:  "bright, energising",
+  luteal:     "grounding, steady",
+};
 
 export default function PlanScreen() {
-  const router = useRouter();
   const currentPhase = useAppStore((s) => s.currentPhase);
   const profile = useAppStore((s) => s.profile);
-  const accentColor = useAppStore((s) => s.accentColor());
+  const vitaminsTakenByDate = useAppStore((s) => s.vitaminsTakenByDate);
+  const toggleVitaminTakenForDate = useAppStore((s) => s.toggleVitaminTakenForDate);
+  const [weeklyVisible, setWeeklyVisible] = useState(false);
 
   const phase = PHASE_INFO[currentPhase];
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const takenToday = vitaminsTakenByDate[todayStr] ?? [];
+
+  const hasPCOS = profile.conditions.includes("PCOS");
+  const phaseVitamins = hasPCOS ? PCOS_VITAMINS : PHASE_VITAMINS[currentPhase];
 
   const cycleDay = (() => {
     if (!profile.lastPeriodDate) return profile.cycleDay ?? 1;
-    const diff = Math.floor(
-      (Date.now() - new Date(profile.lastPeriodDate).getTime()) / 86400000
-    );
+    const diff = Math.floor((Date.now() - new Date(profile.lastPeriodDate).getTime()) / 86400000);
     return Math.min(Math.max(1, diff + 1), profile.cycleLength);
   })();
 
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long", month: "long", day: "numeric",
-  });
+  const nextDay = (cycleDay % profile.cycleLength) + 1;
+  const nextPhaseKey = getPhaseForDay(nextDay, profile.cycleLength);
+  const nextPhase = PHASE_INFO[nextPhaseKey];
+  const showTomorrow = nextPhaseKey !== currentPhase;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -38,82 +50,122 @@ export default function PlanScreen() {
 
         {/* Header */}
         <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
-          <View>
-            <Text style={styles.title}>Daily Brief</Text>
-            <Text style={styles.date}>{today}</Text>
-          </View>
-          <Pressable
-            onPress={() => router.push("/(tabs)/grocery")}
-            style={[styles.groceryBtn, { backgroundColor: `${accentColor}18`, borderColor: `${accentColor}30` }]}
-          >
-            <Ionicons name="cart-outline" size={15} color={accentColor} />
-            <Text style={[styles.groceryBtnText, { color: accentColor }]}>Grocery</Text>
-          </Pressable>
+          <Text style={styles.title}>Plan</Text>
+          <Text style={styles.subtitle}>what to focus on today</Text>
         </Animated.View>
 
-        {/* Phase card */}
+        {/* Easy wins card */}
         <Animated.View entering={FadeInDown.delay(60).duration(400)}>
           <GlowCard style={styles.card}>
             <View style={styles.phaseRow}>
               <Text style={styles.phaseEmoji}>{phase.emoji}</Text>
-              <View style={styles.phaseText}>
-                <Text style={styles.phaseName}>{phase.label}</Text>
-                <Text style={styles.phaseDay}>Day {cycleDay} of {profile.cycleLength}</Text>
+              <Text style={styles.phaseName}>{phase.label}</Text>
+              <View style={styles.todayPill}>
+                <Text style={styles.todayPillText}>today</Text>
               </View>
             </View>
-            <View style={styles.pillRow}>
-              {phase.foodFocus.map((f) => (
-                <View key={f} style={styles.pill}>
-                  <Text style={styles.pillText}>{f}</Text>
-                </View>
-              ))}
-            </View>
+            <Text style={styles.sectionLabel}>EASY WINS TODAY</Text>
+            {phase.easyWins.slice(0, 5).map((win, i) => (
+              <View key={i} style={[styles.winRow, i < 4 && styles.winRowGap]}>
+                <Text style={styles.winPlus}>+</Text>
+                <Text style={styles.winText}>{win}</Text>
+              </View>
+            ))}
           </GlowCard>
         </Animated.View>
 
-        {/* Easy wins */}
-        <Animated.View entering={FadeInDown.delay(120).duration(400)}>
+        {/* Try to limit card */}
+        <Animated.View entering={FadeInDown.delay(100).duration(400)}>
           <GlowCard style={styles.card}>
-            <Text style={styles.sectionTitle}>Easy wins today</Text>
-            <Text style={styles.sectionSubtitle}>Whether you're cooking, eating out, or grabbing something quick</Text>
-            <View style={styles.winsList}>
-              {phase.easyWins.map((win, i) => (
-                <View key={i} style={[styles.winRow, i < phase.easyWins.length - 1 && styles.winBorder]}>
-                  <View style={[styles.winDot, { backgroundColor: `${accentColor}50` }]} />
-                  <Text style={styles.winText}>{win}</Text>
+            <Text style={styles.sectionLabel}>TRY TO LIMIT</Text>
+            <View style={styles.avoidPillRow}>
+              {phase.avoid.slice(0, 3).map((item, i) => (
+                <View key={i} style={styles.avoidPill}>
+                  <Text style={styles.avoidPillText}>{item}</Text>
                 </View>
               ))}
             </View>
+            <Text style={styles.insightText}>{phase.insight}</Text>
           </GlowCard>
         </Animated.View>
 
-        {/* Try to limit */}
-        <Animated.View entering={FadeInDown.delay(180).duration(400)}>
+        {/* Vitamins card */}
+        <Animated.View entering={FadeInDown.delay(140).duration(400)}>
           <GlowCard style={styles.card}>
-            <Text style={styles.sectionTitle}>Try to limit</Text>
-            <View style={styles.avoidList}>
-              {phase.avoid.map((item, i) => (
-                <View key={i} style={styles.avoidRow}>
-                  <Ionicons name="remove-circle-outline" size={14} color="#f87171" style={{ marginTop: 1 }} />
-                  <Text style={styles.avoidText}>{item}</Text>
-                </View>
-              ))}
-            </View>
+            <Text style={styles.sectionLabel}>FOCUS SUPPLEMENTS TODAY</Text>
+            {phaseVitamins.slice(0, 3).map((v) => {
+              const taken = takenToday.includes(v.id);
+              return (
+                <Pressable
+                  key={v.id}
+                  onPress={() => toggleVitaminTakenForDate(v.id, todayStr)}
+                  style={styles.vitaminRow}
+                >
+                  <View style={[styles.vitaminCheck, taken && { backgroundColor: ACCENT, borderColor: ACCENT }]}>
+                    {taken && <Ionicons name="checkmark" size={12} color="#0a0e1a" />}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.vitaminNameRow}>
+                      <Text style={[styles.vitaminName, taken && styles.vitaminNameTaken]}>{v.name}</Text>
+                      <Text style={styles.vitaminDose}>{v.dosage}</Text>
+                    </View>
+                    <Text style={styles.vitaminTiming}>{v.timing}</Text>
+                    <Text style={styles.vitaminReason}>{v.reason}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
           </GlowCard>
         </Animated.View>
 
-        {/* Insight */}
-        <Animated.View entering={FadeInDown.delay(240).duration(400)}>
-          <GlowCard style={styles.card}>
-            <View style={styles.insightRow}>
-              <Ionicons name="bulb-outline" size={16} color={accentColor} />
-              <Text style={[styles.insightText, { color: accentColor }]}>{phase.insight}</Text>
+        {/* Tomorrow teaser */}
+        {showTomorrow && (
+          <Animated.View entering={FadeInDown.delay(180).duration(400)}>
+            <View style={styles.tomorrowTeaser}>
+              <Text style={styles.tomorrowLeft}>
+                Tomorrow — {nextPhase.emoji} {nextPhase.label.replace(" Phase", "")}
+              </Text>
+              <Text style={styles.tomorrowRight}>{PHASE_TAGLINE[nextPhaseKey]}</Text>
             </View>
-          </GlowCard>
+          </Animated.View>
+        )}
+
+        {/* Plan my week */}
+        <Animated.View entering={FadeInDown.delay(220).duration(400)}>
+          <Pressable onPress={() => setWeeklyVisible(true)} style={styles.weekBtn}>
+            <Text style={styles.weekBtnText}>Plan my week</Text>
+            <Text style={[styles.weekBtnArrow, { color: ACCENT }]}>→</Text>
+          </Pressable>
         </Animated.View>
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Weekly plan modal */}
+      <Modal visible={weeklyVisible} transparent animationType="slide" onRequestClose={() => setWeeklyVisible(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setWeeklyVisible(false)}>
+          <Pressable style={styles.modalSheet} onPress={() => {}}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Next 7 days</Text>
+            {Array.from({ length: 7 }).map((_, i) => {
+              const day = ((cycleDay - 1 + i) % profile.cycleLength) + 1;
+              const phaseKey = getPhaseForDay(day, profile.cycleLength);
+              const p = PHASE_INFO[phaseKey];
+              const dayLabel = i === 0 ? "Today" : i === 1 ? "Tomorrow"
+                : new Date(Date.now() + i * 86400000).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+              return (
+                <View key={i} style={[styles.weekRow, i < 6 && styles.weekRowBorder]}>
+                  <Text style={styles.weekRowLabel}>{dayLabel}</Text>
+                  <View style={styles.weekRowRight}>
+                    <Text style={styles.weekRowEmoji}>{p.emoji}</Text>
+                    <Text style={styles.weekRowPhase}>{p.label.replace(" Phase", "")}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -122,53 +174,102 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: DARK_THEME.bg },
   scroll: { padding: 16, paddingTop: 12 },
 
-  header: {
-    flexDirection: "row", justifyContent: "space-between",
-    alignItems: "flex-start", marginBottom: 16,
-  },
+  header: { marginBottom: 20 },
   title: { fontFamily: "Georgia", fontSize: 26, color: DARK_THEME.textPrimary, fontWeight: "600" },
-  date: { fontSize: 12, color: DARK_THEME.textSecondary, marginTop: 3 },
-  groceryBtn: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 14, borderWidth: 1,
-  },
-  groceryBtnText: { fontSize: TYPE.sm, fontWeight: "600" },
+  subtitle: { fontSize: TYPE.sm, color: DARK_THEME.textMuted, marginTop: 3 },
 
-  card: { marginBottom: 12 },
+  card: { marginBottom: 10 },
 
-  phaseRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
-  phaseEmoji: { fontSize: 28 },
-  phaseText: { flex: 1 },
-  phaseName: { fontSize: 17, fontWeight: "700", color: DARK_THEME.textPrimary },
-  phaseDay: { fontSize: TYPE.sm, color: DARK_THEME.textMuted, marginTop: 2 },
-  pillRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  pill: {
-    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1,
-    backgroundColor: "rgba(255,255,255,0.06)", borderColor: "rgba(255,255,255,0.10)",
+  phaseRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 },
+  phaseEmoji: { fontSize: 20 },
+  phaseName: { flex: 1, fontSize: 15, fontWeight: "700", color: DARK_THEME.textPrimary },
+  todayPill: {
+    backgroundColor: `${ACCENT}18`, borderRadius: 20,
+    paddingHorizontal: 10, paddingVertical: 3,
   },
-  pillText: { fontSize: TYPE.sm, fontWeight: "500", color: "rgba(255,255,255,0.60)" },
+  todayPillText: { fontSize: TYPE.xs, color: ACCENT, fontWeight: "600", letterSpacing: 0.3 },
 
-  sectionTitle: {
-    fontFamily: "Georgia", fontSize: 16,
-    color: DARK_THEME.textPrimary, marginBottom: 4,
-  },
-  sectionSubtitle: {
-    fontSize: TYPE.xs, color: DARK_THEME.textMuted, marginBottom: 14, lineHeight: 16,
+  sectionLabel: {
+    fontSize: 9, color: DARK_THEME.textMuted, fontWeight: "700",
+    letterSpacing: 1.2, marginBottom: 12,
   },
 
-  winsList: { gap: 0 },
-  winRow: {
-    flexDirection: "row", alignItems: "center",
-    gap: 12, paddingVertical: 11,
+  // Easy wins
+  winRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  winRowGap: { marginBottom: 10 },
+  winPlus: { fontSize: 14, color: ACCENT, fontWeight: "700", lineHeight: 20, width: 12 },
+  winText: { flex: 1, fontSize: TYPE.body, color: DARK_THEME.textPrimary, lineHeight: 20 },
+
+  // Avoid pills
+  avoidPillRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 14 },
+  avoidPill: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.10)",
   },
-  winBorder: { borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" },
-  winDot: { width: 7, height: 7, borderRadius: 4, flexShrink: 0 },
-  winText: { fontSize: TYPE.body, color: DARK_THEME.textPrimary, flex: 1 },
+  avoidPillText: { fontSize: TYPE.xs, color: "rgba(255,255,255,0.40)", fontWeight: "500" },
+  insightText: {
+    fontSize: TYPE.body, color: DARK_THEME.textMuted,
+    fontStyle: "italic", lineHeight: 21,
+  },
 
-  avoidList: { gap: 10, marginTop: 10 },
-  avoidRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
-  avoidText: { fontSize: TYPE.body, color: DARK_THEME.textSecondary, flex: 1 },
+  // Vitamins
+  vitaminRow: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 14 },
+  vitaminCheck: {
+    width: 22, height: 22, borderRadius: 11, borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.20)", alignItems: "center", justifyContent: "center",
+    marginTop: 1, flexShrink: 0,
+  },
+  vitaminNameRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 },
+  vitaminName: { fontSize: TYPE.sm, color: DARK_THEME.textPrimary, fontWeight: "600" },
+  vitaminNameTaken: { color: DARK_THEME.textMuted },
+  vitaminDose: { fontSize: TYPE.xs, color: DARK_THEME.textMuted },
+  vitaminTiming: { fontSize: TYPE.xs, color: "rgba(255,255,255,0.35)" },
+  vitaminReason: { fontSize: TYPE.xs, color: "rgba(255,255,255,0.35)", marginTop: 2, fontStyle: "italic" },
 
-  insightRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  insightText: { flex: 1, fontSize: TYPE.body, lineHeight: 22, fontStyle: "italic" },
+  // Tomorrow teaser
+  tomorrowTeaser: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    paddingHorizontal: 16, paddingVertical: 12,
+    backgroundColor: "rgba(255,255,255,0.02)",
+    borderRadius: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.05)",
+    marginBottom: 10,
+  },
+  tomorrowLeft: { fontSize: TYPE.sm, color: "rgba(255,255,255,0.30)", fontWeight: "500" },
+  tomorrowRight: { fontSize: TYPE.sm, color: "rgba(255,255,255,0.22)", fontStyle: "italic" },
+
+  // Plan my week button
+  weekBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 14,
+  },
+  weekBtnText: { fontSize: TYPE.body, color: "rgba(255,255,255,0.30)" },
+  weekBtnArrow: { fontSize: 16, fontWeight: "600" },
+
+  // Weekly modal
+  modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" },
+  modalSheet: {
+    backgroundColor: "#111827",
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 20, paddingBottom: 40,
+    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+  },
+  modalHandle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignSelf: "center", marginBottom: 20,
+  },
+  modalTitle: {
+    fontFamily: "Georgia", fontSize: 18,
+    color: DARK_THEME.textPrimary, marginBottom: 16, fontWeight: "600",
+  },
+  weekRow: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    paddingVertical: 13,
+  },
+  weekRowBorder: { borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" },
+  weekRowLabel: { fontSize: TYPE.body, color: DARK_THEME.textSecondary, width: 110 },
+  weekRowRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  weekRowEmoji: { fontSize: 16 },
+  weekRowPhase: { fontSize: TYPE.body, color: DARK_THEME.textPrimary, fontWeight: "500" },
 });

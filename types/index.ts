@@ -2,6 +2,15 @@ export type GoalType = "wellness" | "muscle" | "weightloss" | "hormonal";
 export type CyclePhase = "menstrual" | "follicular" | "ovulatory" | "luteal";
 export type MealType = "breakfast" | "lunch" | "dinner" | "snack";
 
+export interface IngredientItem {
+  name: string;     // includes weight estimate e.g. "Rolled oats (~80g)"
+  protein: number;
+  carbs: number;
+  fat: number;
+  fibre?: number;
+  calories: number; // pre-computed P×4 + C×4 + F×9
+}
+
 export interface FoodEntry {
   id: string;
   name: string;
@@ -9,6 +18,10 @@ export interface FoodEntry {
   protein: number;
   carbs: number;
   fat: number;
+  fibre?: number;
+  badge?: string;        // phase-relevant badge e.g. "iron-rich", "high fibre"
+  ingredients?: IngredientItem[];
+  phaseNote?: string;    // one-line phase connection from Claude
   time: string;
   date: string; // ISO YYYY-MM-DD — used to filter to today only
   meal: MealType;
@@ -59,10 +72,12 @@ export interface WeeklyPlanDay {
 
 export interface UserProfile {
   id: string | null;
+  name?: string;
   goal: GoalType;
   conditions: string[];
   cycleLength: number;
   cycleDay: number;
+  isIrregular?: boolean;
   lastPeriodDate: string | null; // ISO date string YYYY-MM-DD
   allergies: string[];
   dietStyle: string;

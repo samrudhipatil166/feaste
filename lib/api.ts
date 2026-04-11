@@ -6,47 +6,73 @@ async function invokeWithRetry(
   fn: string,
   body: object,
   retries = 2,
-): Promise<{ data: unknown; error: unknown }> {
+): Promise<{ data: unknown; error: string | null }> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     const { data, error } = await supabase.functions.invoke(fn, { body });
-    if (!error && !data?.error) return { data, error: null };
-    if (attempt < retries) await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
-    else return { data, error };
+    if (error) {
+      console.error(`[${fn}] invoke error (attempt ${attempt + 1}):`, error.message ?? error);
+      if (attempt < retries) { await new Promise((r) => setTimeout(r, 800 * (attempt + 1))); continue; }
+      return { data: null, error: error.message ?? "Invoke failed" };
+    }
+    if (data?.ok === false) {
+      console.error(`[${fn}] function error (attempt ${attempt + 1}):`, data.error);
+      if (attempt < retries) { await new Promise((r) => setTimeout(r, 800 * (attempt + 1))); continue; }
+      return { data: null, error: data.error ?? "Function failed" };
+    }
+    return { data, error: null };
   }
-  return { data: null, error: new Error("Max retries exceeded") };
+  return { data: null, error: "Max retries exceeded" };
 }
 
-export interface MealBreakdownItem {
-  name: string;
+export interface IngredientItem {
+  name: string;     // "Rolled oats (~80g)"
   protein: number;
   carbs: number;
   fat: number;
+  fibre?: number;
+  calories: number; // computed from macros
 }
+
+// Keep for backward compatibility
+export type MealBreakdownItem = IngredientItem;
 
 export interface MealAnalysis {
   name: string;
-  calories?: number;
+  calories: number; // computed from macros
   protein: number;
   carbs: number;
   fat: number;
+  fibre: number;
   confidence: number;
-  breakdown?: MealBreakdownItem[];
+  ingredients: IngredientItem[];
+  phaseNote?: string;
+  phaseBadge?: string;
 }
 
 export async function analyzeMeal(input: {
   type: "text" | "voice";
   description: string;
+  phase?: string;
 }): Promise<MealAnalysis | null> {
   const { data, error } = await invokeWithRetry("analyze-meal", {
-    type: input.type, description: input.description,
+    type: input.type,
+    description: input.description,
+    phase: input.phase,
   });
   if (error) { console.error("analyze-meal error:", error); return null; }
   return data as MealAnalysis;
 }
 
-export async function analyzeMealPhoto(base64Image: string, description?: string): Promise<MealAnalysis | null> {
+export async function analyzeMealPhoto(
+  base64Image: string,
+  description?: string,
+  phase?: string,
+): Promise<MealAnalysis | null> {
   const { data, error } = await invokeWithRetry("analyze-meal", {
-    type: "photo", image: base64Image, ...(description?.trim() ? { description } : {}),
+    type: "photo",
+    image: base64Image,
+    ...(description?.trim() ? { description } : {}),
+    phase,
   });
   if (error) { console.error("analyze-meal-photo error:", error); return null; }
   return data as MealAnalysis;

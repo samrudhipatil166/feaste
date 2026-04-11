@@ -248,10 +248,8 @@ export default function GroceryScreen() {
         {/* Header */}
         <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Grocery List</Text>
-            <Text style={styles.subtitle}>
-              Want to stock up on {phase.label.toLowerCase()} foods this week? Here's a simple list
-            </Text>
+            <Text style={styles.title}>Grocery</Text>
+            <Text style={styles.subtitle}>stock up on {phase.label.toLowerCase()} foods</Text>
           </View>
           <Ionicons name="cart" size={22} color={accentColor} />
         </Animated.View>

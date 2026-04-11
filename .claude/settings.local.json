@@ -41,7 +41,32 @@
       "WebFetch(domain:play.google.com)",
       "Bash(vercel build:*)",
       "Bash(vercel:*)",
-      "Bash(sips:*)"
+      "Bash(sips:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(npx tsc:*)",
+      "Bash(supabase status:*)",
+      "Bash(eas --version)",
+      "Bash(xcode-select -p)",
+      "Bash(xcrun simctl:*)",
+      "Bash(ipconfig getifaddr:*)",
+      "Bash(kill %1)",
+      "Bash(pkill -f \"metro\")",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_204dcc2579fd624cc641dee13fa2b2887d36f242 npx supabase:*)",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_d0c3aa670cb8c382655818d1798f6e0cbaa82aa5 npx supabase:*)",
+      "Bash(ls *.json)",
+      "Read(//Users/samrudhipatil/.supabase/**)",
+      "Bash(printenv)",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_fe193586fcd0518c1087b2fd5ac42a919092c7a4 npx supabase:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git remote:*)",
+      "Bash(git rm:*)",
+      "Bash(git config:*)",
+      "mcp__plugin_vercel_vercel__get_runtime_logs",
+      "Bash(supabase functions:*)",
+      "Bash(ls .env*)",
+      "Bash(supabase --version)"
     ]
   }
 }
