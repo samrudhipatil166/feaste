@@ -530,11 +530,11 @@ export default function LogScreen() {
     if (useCamera) {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) { setErrorMsg("Camera permission is required."); return; }
-      pickerResult = await ImagePicker.launchCameraAsync({ base64: true, quality: 0.7, allowsEditing: true, aspect: [4, 3] });
+      pickerResult = await ImagePicker.launchCameraAsync({ base64: true, quality: 0.35, allowsEditing: true, aspect: [4, 3], exif: false });
     } else {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) { setErrorMsg("Photo library permission is required."); return; }
-      pickerResult = await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.7, allowsEditing: true, aspect: [4, 3] });
+      pickerResult = await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.35, allowsEditing: true, aspect: [4, 3], exif: false });
     }
     if (pickerResult.canceled || !pickerResult.assets[0].base64) return;
     setPhotoUri(pickerResult.assets[0].uri);
