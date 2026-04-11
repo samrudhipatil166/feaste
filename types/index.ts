@@ -89,4 +89,5 @@ export interface UserProfile {
   proteinGoal: number;
   carbsGoal: number;
   fatGoal: number;
+  fibreGoal: number;
 }

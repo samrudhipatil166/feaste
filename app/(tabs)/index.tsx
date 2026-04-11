@@ -209,12 +209,20 @@ export default function HomeScreen() {
             <Text style={styles.greeting}>{greeting}</Text>
             <Text style={styles.dateStr}>{dateStr}</Text>
           </View>
-          <Pressable
-            onPress={() => { setProfileSection(undefined); setProfileVisible(true); }}
-            style={styles.profileBtn}
-          >
-            <Ionicons name="person" size={18} color={DARK_THEME.textSecondary} />
-          </Pressable>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <Pressable
+              onPress={() => { setProfileSection("cycle"); setProfileVisible(true); }}
+              style={styles.profileBtn}
+            >
+              <Ionicons name="calendar-outline" size={18} color={DARK_THEME.textSecondary} />
+            </Pressable>
+            <Pressable
+              onPress={() => { setProfileSection(undefined); setProfileVisible(true); }}
+              style={styles.profileBtn}
+            >
+              <Ionicons name="person" size={18} color={DARK_THEME.textSecondary} />
+            </Pressable>
+          </View>
         </Animated.View>
 
         {/* ── Phase card ── */}

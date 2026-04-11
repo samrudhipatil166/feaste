@@ -127,6 +127,7 @@ const defaultProfile: UserProfile = {
   proteinGoal: 130,
   carbsGoal: 220,
   fatGoal: 65,
+  fibreGoal: 25,
 };
 
 export const useAppStore = create<AppStore>()(

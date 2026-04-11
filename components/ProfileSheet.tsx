@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View, Text, Pressable, StyleSheet, ScrollView, Modal,
-  TextInput, Alert,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "@/store/useAppStore";
@@ -18,6 +18,16 @@ const SYMPTOMS = [
   "Cramps", "Bloating", "Headache", "Fatigue", "Mood swings",
   "Breast tenderness", "Back pain", "Nausea", "Insomnia", "Spotting",
 ];
+
+const ACTIVITY_LEVELS = ["Sedentary", "Lightly active", "Active", "Very active"];
+const CALC_GOALS = ["Lose weight", "Maintain", "Build muscle"];
+const WEIGHT_UNITS = ["kg", "lbs"];
+
+function fmtDateHuman(iso: string): string {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "";
+  const d = new Date(iso + "T12:00:00");
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+}
 
 function ChipRow({
   options, selected, onToggle, single,
@@ -65,6 +75,7 @@ export function ProfileSheet({
 }) {
   const profile = useAppStore((s) => s.profile);
   const updateProfile = useAppStore((s) => s.updateProfile);
+  const refreshPhase = useAppStore((s) => s.refreshPhase);
   const foodLog = useAppStore((s) => s.foodLog);
   const periodLogs = useAppStore((s) => s.periodLogs);
   const addPeriodLog = useAppStore((s) => s.addPeriodLog);
@@ -75,13 +86,27 @@ export function ProfileSheet({
   const [confirmReset, setConfirmReset] = useState(false);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
-  // Calorie goal input
+  // Calorie + macro goal inputs
   const [calorieInput, setCalorieInput] = useState(String(profile.calorieGoal));
+  const [proteinInput, setProteinInput] = useState(String(profile.proteinGoal));
+  const [carbsInput, setCarbsInput] = useState(String(profile.carbsGoal));
+  const [fatInput, setFatInput] = useState(String(profile.fatGoal));
+  const [fibreInput, setFibreInput] = useState(String(profile.fibreGoal ?? 25));
+
+  // TDEE calculator state
+  const [showCalc, setShowCalc] = useState(false);
+  const [calcWeight, setCalcWeight] = useState("");
+  const [calcWeightUnit, setCalcWeightUnit] = useState("kg");
+  const [calcHeight, setCalcHeight] = useState("");
+  const [calcActivity, setCalcActivity] = useState("Lightly active");
+  const [calcGoal, setCalcGoal] = useState("Maintain");
+  const [calcResult, setCalcResult] = useState<string | null>(null);
 
   // Add period form
   const [addingPeriod, setAddingPeriod] = useState(false);
   const [pStartDate, setPStartDate] = useState("");
   const [pEndDate, setPEndDate] = useState("");
+  const [stillOngoing, setStillOngoing] = useState(false);
   const [pFlow, setPFlow] = useState<PeriodLog["flow"]>("medium");
   const [pSymptoms, setPSymptoms] = useState<string[]>([]);
 
@@ -95,6 +120,41 @@ export function ProfileSheet({
 
   const toggleSingleString = (key: keyof typeof profile, val: string) => {
     updateProfile({ [key]: val } as any);
+  };
+
+  // Live macro kcal check
+  const macroKcal = useMemo(() => {
+    const p = parseInt(proteinInput) || 0;
+    const c = parseInt(carbsInput) || 0;
+    const f = parseInt(fatInput) || 0;
+    return p * 4 + c * 4 + f * 9;
+  }, [proteinInput, carbsInput, fatInput]);
+  const calGoalNum = parseInt(calorieInput) || 0;
+  const macroDiff = Math.abs(macroKcal - calGoalNum);
+
+  const handleCalcTDEE = () => {
+    const weightKg = calcWeightUnit === "kg"
+      ? parseFloat(calcWeight) || 0
+      : (parseFloat(calcWeight) || 0) * 0.453592;
+    const heightCm = parseFloat(calcHeight) || 0;
+    // Mifflin-St Jeor for female
+    const bmr = 10 * weightKg + 6.25 * heightCm - 5 * 30 - 161;
+    const activityMap: Record<string, number> = {
+      "Sedentary": 1.2,
+      "Lightly active": 1.375,
+      "Active": 1.55,
+      "Very active": 1.725,
+    };
+    const tdee = Math.round(bmr * (activityMap[calcActivity] ?? 1.375));
+    const adjusted = calcGoal === "Lose weight" ? Math.round(tdee - 300) : calcGoal === "Build muscle" ? Math.round(tdee + 200) : tdee;
+    const protein = Math.round((adjusted * 0.30) / 4);
+    const carbs   = Math.round((adjusted * 0.40) / 4);
+    const fat     = Math.round((adjusted * 0.30) / 9);
+    setCalorieInput(String(adjusted));
+    setProteinInput(String(protein));
+    setCarbsInput(String(carbs));
+    setFatInput(String(fat));
+    setCalcResult(`Suggested: ${adjusted} kcal — P ${protein}g · C ${carbs}g · F ${fat}g`);
   };
 
   // History: group foodLog by date, last 30 days
@@ -125,6 +185,7 @@ export function ProfileSheet({
       symptoms: pSymptoms,
     });
     setAddingPeriod(false);
+    setStillOngoing(false);
     setPStartDate(""); setPEndDate(""); setPFlow("medium"); setPSymptoms([]);
   };
 
@@ -153,6 +214,9 @@ export function ProfileSheet({
                 <View style={styles.sectionBody}>
                   <View style={styles.fieldGroup}>
                     <Text style={styles.fieldLabel}>Last period start date</Text>
+                    {!!fmtDateHuman(profile.lastPeriodDate ?? "") && (
+                      <Text style={styles.dateDisplay}>{fmtDateHuman(profile.lastPeriodDate ?? "")}</Text>
+                    )}
                     <TextInput
                       style={styles.fieldInput}
                       value={profile.lastPeriodDate ?? ""}
@@ -160,6 +224,7 @@ export function ProfileSheet({
                       placeholder="YYYY-MM-DD"
                       placeholderTextColor={DARK_THEME.textMuted}
                     />
+                    <Text style={styles.hintText}>Cannot be a future date</Text>
                   </View>
                   <View style={styles.stepperRow}>
                     <Text style={styles.stepperLabel}>Cycle length</Text>
@@ -204,7 +269,10 @@ export function ProfileSheet({
                   <Text style={styles.subSectionTitle}>Period log</Text>
                   {periodLogs.slice(0, 3).map((log) => (
                     <View key={log.id} style={styles.periodRow}>
-                      <Text style={styles.periodDate}>{log.startDate}{log.endDate ? ` — ${log.endDate}` : ""}</Text>
+                      <Text style={styles.periodDate}>
+                        {fmtDateHuman(log.startDate) || log.startDate}
+                        {log.endDate ? ` — ${fmtDateHuman(log.endDate) || log.endDate}` : " (ongoing)"}
+                      </Text>
                       <Text style={styles.periodFlow}>{log.flow}</Text>
                     </View>
                   ))}
@@ -214,19 +282,41 @@ export function ProfileSheet({
 
                   {addingPeriod ? (
                     <View style={styles.addPeriodForm}>
+                      <Text style={styles.fieldLabel}>Start date</Text>
+                      {!!fmtDateHuman(pStartDate) && (
+                        <Text style={styles.dateDisplay}>{fmtDateHuman(pStartDate)}</Text>
+                      )}
                       <TextInput
                         style={styles.fieldInput}
                         value={pStartDate}
                         onChangeText={setPStartDate}
-                        placeholder="Start date (YYYY-MM-DD)"
+                        placeholder="YYYY-MM-DD"
                         placeholderTextColor={DARK_THEME.textMuted}
                       />
+                      <View style={[styles.endDateHeader, { marginTop: 10 }]}>
+                        <Text style={styles.fieldLabel}>End date</Text>
+                        <Pressable
+                          onPress={() => {
+                            setStillOngoing(!stillOngoing);
+                            if (!stillOngoing) setPEndDate("");
+                          }}
+                          style={[styles.ongoingToggle, stillOngoing && styles.ongoingToggleActive]}
+                        >
+                          <Text style={[styles.ongoingToggleText, stillOngoing && styles.ongoingToggleTextActive]}>
+                            Still ongoing
+                          </Text>
+                        </Pressable>
+                      </View>
+                      {!!fmtDateHuman(pEndDate) && !stillOngoing && (
+                        <Text style={styles.dateDisplay}>{fmtDateHuman(pEndDate)}</Text>
+                      )}
                       <TextInput
-                        style={[styles.fieldInput, { marginTop: 8 }]}
-                        value={pEndDate}
+                        style={[styles.fieldInput, stillOngoing && styles.fieldInputDisabled]}
+                        value={stillOngoing ? "" : pEndDate}
                         onChangeText={setPEndDate}
-                        placeholder="End date (YYYY-MM-DD, optional)"
+                        placeholder={stillOngoing ? "Still ongoing" : "YYYY-MM-DD (optional)"}
                         placeholderTextColor={DARK_THEME.textMuted}
+                        editable={!stillOngoing}
                       />
                       <Text style={[styles.fieldLabel, { marginTop: 10 }]}>Flow</Text>
                       <View style={styles.chipWrap}>
@@ -247,7 +337,7 @@ export function ProfileSheet({
                         setPSymptoms((prev) => prev.includes(v) ? prev.filter((s) => s !== v) : [...prev, v]);
                       }} />
                       <View style={styles.formActions}>
-                        <Pressable onPress={() => setAddingPeriod(false)} style={styles.cancelBtn}>
+                        <Pressable onPress={() => { setAddingPeriod(false); setStillOngoing(false); }} style={styles.cancelBtn}>
                           <Text style={styles.cancelBtnText}>Cancel</Text>
                         </Pressable>
                         <Pressable onPress={handleAddPeriod} style={styles.saveBtn}>
@@ -261,6 +351,17 @@ export function ProfileSheet({
                       <Text style={[styles.addPeriodText, { color: ACCENT }]}>Add period</Text>
                     </Pressable>
                   )}
+
+                  {/* Save cycle settings */}
+                  <Pressable
+                    onPress={() => {
+                      updateProfile({ lastPeriodDate: profile.lastPeriodDate, cycleLength: profile.cycleLength, isIrregular: profile.isIrregular });
+                      refreshPhase();
+                    }}
+                    style={[styles.fullSaveBtn, { marginTop: 16 }]}
+                  >
+                    <Text style={styles.fullSaveBtnText}>Save changes</Text>
+                  </Pressable>
                 </View>
               )}
             </View>
@@ -335,23 +436,177 @@ export function ProfileSheet({
                     selected={profile.conditions}
                     onToggle={(v) => toggleMulti("conditions", v)}
                   />
+
+                  {/* ── Calorie & macro goals ── */}
                   <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Daily calorie goal</Text>
-                  <View style={styles.calorieRow}>
+                  <View style={styles.macroInputRow}>
                     <TextInput
-                      style={styles.calorieInput}
+                      style={styles.macroInput}
                       value={calorieInput}
                       onChangeText={setCalorieInput}
                       keyboardType="number-pad"
                       placeholderTextColor={DARK_THEME.textMuted}
                     />
-                    <Text style={styles.calorieUnit}>kcal</Text>
-                    <Pressable
-                      onPress={() => updateProfile({ calorieGoal: Math.max(1, parseInt(calorieInput) || profile.calorieGoal) })}
-                      style={styles.saveBtn}
-                    >
-                      <Text style={styles.saveBtnText}>Save</Text>
-                    </Pressable>
+                    <Text style={styles.macroUnit}>kcal</Text>
                   </View>
+
+                  <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Protein</Text>
+                  <View style={styles.macroInputRow}>
+                    <TextInput
+                      style={styles.macroInput}
+                      value={proteinInput}
+                      onChangeText={setProteinInput}
+                      keyboardType="number-pad"
+                      placeholderTextColor={DARK_THEME.textMuted}
+                    />
+                    <Text style={styles.macroUnit}>g</Text>
+                  </View>
+
+                  <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Carbohydrates</Text>
+                  <View style={styles.macroInputRow}>
+                    <TextInput
+                      style={styles.macroInput}
+                      value={carbsInput}
+                      onChangeText={setCarbsInput}
+                      keyboardType="number-pad"
+                      placeholderTextColor={DARK_THEME.textMuted}
+                    />
+                    <Text style={styles.macroUnit}>g</Text>
+                  </View>
+
+                  <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Fat</Text>
+                  <View style={styles.macroInputRow}>
+                    <TextInput
+                      style={styles.macroInput}
+                      value={fatInput}
+                      onChangeText={setFatInput}
+                      keyboardType="number-pad"
+                      placeholderTextColor={DARK_THEME.textMuted}
+                    />
+                    <Text style={styles.macroUnit}>g</Text>
+                  </View>
+
+                  <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Fibre</Text>
+                  <View style={styles.macroInputRow}>
+                    <TextInput
+                      style={styles.macroInput}
+                      value={fibreInput}
+                      onChangeText={setFibreInput}
+                      keyboardType="number-pad"
+                      placeholderTextColor={DARK_THEME.textMuted}
+                    />
+                    <Text style={styles.macroUnit}>g</Text>
+                  </View>
+
+                  {/* Live macro check */}
+                  <View style={styles.macroCheckRow}>
+                    <Text style={styles.macroCheckFormula}>
+                      {`(P×4) + (C×4) + (F×9) = ${macroKcal} kcal`}
+                    </Text>
+                    {calGoalNum > 0 && macroDiff <= 100 ? (
+                      <Text style={styles.macroCheckGood}>macros look good ✓</Text>
+                    ) : calGoalNum > 0 ? (
+                      <Text style={styles.macroCheckWarn}>{`your macros add up to ${macroKcal} kcal — consider adjusting`}</Text>
+                    ) : null}
+                  </View>
+
+                  {/* TDEE calculator */}
+                  <Text style={styles.tdeeHint}>Not sure what your macros should be?</Text>
+                  <Pressable onPress={() => setShowCalc(!showCalc)} style={styles.tdeeLink}>
+                    <Text style={styles.tdeeLinkText}>{showCalc ? "hide calculator ↑" : "calculate for me →"}</Text>
+                  </Pressable>
+
+                  {showCalc && (
+                    <View style={styles.calcBox}>
+                      <Text style={[styles.fieldLabel, { marginBottom: 6 }]}>Weight</Text>
+                      <View style={styles.macroInputRow}>
+                        <TextInput
+                          style={styles.macroInput}
+                          value={calcWeight}
+                          onChangeText={setCalcWeight}
+                          keyboardType="number-pad"
+                          placeholder="e.g. 65"
+                          placeholderTextColor={DARK_THEME.textMuted}
+                        />
+                        <View style={styles.unitToggleRow}>
+                          {WEIGHT_UNITS.map((u) => (
+                            <Pressable
+                              key={u}
+                              onPress={() => setCalcWeightUnit(u)}
+                              style={[styles.unitToggleChip, calcWeightUnit === u && styles.chipActive]}
+                            >
+                              <Text style={[styles.chipText, calcWeightUnit === u && styles.chipTextActive]}>{u}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </View>
+
+                      <Text style={[styles.fieldLabel, { marginTop: 10, marginBottom: 6 }]}>Height (cm)</Text>
+                      <View style={styles.macroInputRow}>
+                        <TextInput
+                          style={styles.macroInput}
+                          value={calcHeight}
+                          onChangeText={setCalcHeight}
+                          keyboardType="number-pad"
+                          placeholder="e.g. 165"
+                          placeholderTextColor={DARK_THEME.textMuted}
+                        />
+                        <Text style={styles.macroUnit}>cm</Text>
+                      </View>
+
+                      <Text style={[styles.fieldLabel, { marginTop: 10 }]}>Activity level</Text>
+                      <View style={styles.chipWrap}>
+                        {ACTIVITY_LEVELS.map((a) => (
+                          <Pressable
+                            key={a}
+                            onPress={() => setCalcActivity(a)}
+                            style={[styles.chip, calcActivity === a && styles.chipActive]}
+                          >
+                            <Text style={[styles.chipText, calcActivity === a && styles.chipTextActive]}>{a}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+
+                      <Text style={[styles.fieldLabel, { marginTop: 10 }]}>Goal</Text>
+                      <View style={styles.chipWrap}>
+                        {CALC_GOALS.map((g) => (
+                          <Pressable
+                            key={g}
+                            onPress={() => setCalcGoal(g)}
+                            style={[styles.chip, calcGoal === g && styles.chipActive]}
+                          >
+                            <Text style={[styles.chipText, calcGoal === g && styles.chipTextActive]}>{g}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+
+                      <Pressable onPress={handleCalcTDEE} style={[styles.fullSaveBtn, { marginTop: 14 }]}>
+                        <Text style={styles.fullSaveBtnText}>Calculate</Text>
+                      </Pressable>
+
+                      {calcResult && (
+                        <Text style={styles.calcResultText}>{calcResult}</Text>
+                      )}
+                      <Text style={styles.calcNote}>These are suggested starting targets — adjust to suit you</Text>
+                    </View>
+                  )}
+
+                  {/* Save preferences */}
+                  <Pressable
+                    onPress={() => updateProfile({
+                      dietStyle: profile.dietStyle,
+                      allergies: profile.allergies,
+                      conditions: profile.conditions,
+                      calorieGoal: Math.max(1, parseInt(calorieInput) || profile.calorieGoal),
+                      proteinGoal: Math.max(1, parseInt(proteinInput) || profile.proteinGoal),
+                      carbsGoal: Math.max(1, parseInt(carbsInput) || profile.carbsGoal),
+                      fatGoal: Math.max(1, parseInt(fatInput) || profile.fatGoal),
+                      fibreGoal: Math.max(1, parseInt(fibreInput) || (profile.fibreGoal ?? 25)),
+                    })}
+                    style={[styles.fullSaveBtn, { marginTop: 16 }]}
+                  >
+                    <Text style={styles.fullSaveBtnText}>Save</Text>
+                  </Pressable>
                 </View>
               )}
             </View>
@@ -537,4 +792,65 @@ const styles = StyleSheet.create({
   confirmRow: { flexDirection: "row", gap: 8 },
 
   emptyText: { fontSize: TYPE.sm, color: DARK_THEME.textMuted, fontStyle: "italic", marginVertical: 8 },
+
+  // Date display
+  dateDisplay: {
+    fontSize: TYPE.body, color: DARK_THEME.textPrimary, fontWeight: "600",
+    marginBottom: 4,
+  },
+  hintText: { fontSize: TYPE.xs, color: DARK_THEME.textMuted, marginTop: 4 },
+
+  // End date / ongoing toggle
+  endDateHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  ongoingToggle: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.10)", backgroundColor: "rgba(255,255,255,0.03)",
+  },
+  ongoingToggleActive: { borderColor: `${ACCENT}50`, backgroundColor: `${ACCENT}12` },
+  ongoingToggleText: { fontSize: TYPE.xs, color: DARK_THEME.textSecondary },
+  ongoingToggleTextActive: { color: ACCENT, fontWeight: "600" },
+  fieldInputDisabled: { opacity: 0.4 },
+
+  // Full-width save button
+  fullSaveBtn: {
+    paddingVertical: 13, borderRadius: 12, alignItems: "center",
+    backgroundColor: ACCENT,
+  },
+  fullSaveBtnText: { fontSize: TYPE.body, fontWeight: "700", color: "#412402" },
+
+  // Macro inputs
+  macroInputRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  macroInput: {
+    flex: 1, backgroundColor: DARK_THEME.inputBg, borderRadius: 10,
+    borderWidth: 1, borderColor: DARK_THEME.borderColor,
+    paddingHorizontal: 12, paddingVertical: 8,
+    fontSize: TYPE.body, color: DARK_THEME.textPrimary, fontWeight: "600",
+  },
+  macroUnit: { fontSize: TYPE.sm, color: DARK_THEME.textMuted, width: 30 },
+
+  // Macro check
+  macroCheckRow: { marginTop: 12, gap: 4 },
+  macroCheckFormula: { fontSize: TYPE.xs, color: DARK_THEME.textMuted },
+  macroCheckGood: { fontSize: TYPE.sm, color: "rgba(134,239,172,0.80)", fontWeight: "600" },
+  macroCheckWarn: { fontSize: TYPE.sm, color: ACCENT, fontWeight: "600" },
+
+  // TDEE calculator
+  tdeeHint: { fontSize: TYPE.xs, color: DARK_THEME.textMuted, marginTop: 16 },
+  tdeeLink: { marginTop: 4, alignSelf: "flex-start" },
+  tdeeLinkText: { fontSize: TYPE.sm, color: ACCENT, fontWeight: "600" },
+  calcBox: {
+    marginTop: 12, padding: 12, borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.07)",
+  },
+  unitToggleRow: { flexDirection: "row", gap: 6 },
+  unitToggleChip: {
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.10)", backgroundColor: "rgba(255,255,255,0.03)",
+  },
+  calcResultText: {
+    fontSize: TYPE.sm, color: DARK_THEME.textPrimary, fontWeight: "600",
+    marginTop: 10, textAlign: "center",
+  },
+  calcNote: { fontSize: TYPE.xs, color: DARK_THEME.textMuted, marginTop: 6, textAlign: "center", fontStyle: "italic" },
 });
