@@ -43,6 +43,86 @@ interface AnalysisResult {
   perServingFibre?: number;
 }
 
+// ── Ingredient edit form (weight-aware, extracts grams/ml from name) ───────────
+function IngredientEditForm({
+  item, editName, editCal,
+  onEditName, onEditCal, onSave, onCancel,
+}: {
+  item: IngredientItem;
+  editName: string; editCal: string;
+  onEditName: (v: string) => void; onEditCal: (v: string) => void;
+  onSave: () => void; onCancel: () => void;
+}) {
+  const weightMatch = item.name.match(/\(~?(\d+(?:\.\d+)?)\s*(g|ml|oz|kg)\b/i);
+  const baseWeight = weightMatch ? parseFloat(weightMatch[1]) : null;
+  const weightUnit = weightMatch ? weightMatch[2].toLowerCase() : "g";
+  const baseCal = item.calories;
+
+  const [editWeight, setEditWeight] = useState(baseWeight !== null ? String(Math.round(baseWeight)) : "");
+
+  const handleWeightChange = (val: string) => {
+    setEditWeight(val);
+    const newW = parseFloat(val);
+    if (baseWeight && newW > 0 && baseCal > 0) {
+      const newCal = Math.round(baseCal * (newW / baseWeight));
+      onEditCal(String(newCal));
+      // Update weight in name to stay in sync
+      const updated = item.name.replace(
+        /\(~?\d+(?:\.\d+)?\s*(?:g|ml|oz|kg)\b/i,
+        `(~${Math.round(newW)}${weightUnit}`
+      );
+      onEditName(updated);
+    }
+  };
+
+  return (
+    <View style={ingStyles.editWrap}>
+      <TextInput
+        style={ingStyles.editInput}
+        value={editName}
+        onChangeText={onEditName}
+        placeholder="Ingredient name"
+        placeholderTextColor={MUTED}
+      />
+      {baseWeight !== null ? (
+        <View style={ingStyles.editWeightRow}>
+          <TextInput
+            style={[ingStyles.editInput, { flex: 1 }]}
+            value={editWeight}
+            onChangeText={handleWeightChange}
+            placeholder="Weight"
+            placeholderTextColor={MUTED}
+            keyboardType="decimal-pad"
+          />
+          <Text style={ingStyles.editCalUnit}>{weightUnit}</Text>
+          <Text style={ingStyles.editWeightArrow}>→</Text>
+          <Text style={ingStyles.editWeightCal}>{editCal} kcal</Text>
+        </View>
+      ) : (
+        <View style={ingStyles.editCalRow}>
+          <TextInput
+            style={[ingStyles.editInput, { flex: 1 }]}
+            value={editCal}
+            onChangeText={onEditCal}
+            placeholder="Calories"
+            placeholderTextColor={MUTED}
+            keyboardType="number-pad"
+          />
+          <Text style={ingStyles.editCalUnit}>kcal</Text>
+        </View>
+      )}
+      <View style={ingStyles.editActions}>
+        <Pressable onPress={onCancel} style={ingStyles.editCancel}>
+          <Text style={ingStyles.editCancelText}>Cancel</Text>
+        </Pressable>
+        <Pressable onPress={onSave} style={ingStyles.editSave}>
+          <Text style={ingStyles.editSaveText}>Save</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 // ── Ingredient breakdown row ───────────────────────────────────────────────────
 function IngredientRow({
   item, onPress, isEditing, isEditMode, editName, editCal,
@@ -59,34 +139,15 @@ function IngredientRow({
 }) {
   if (isEditing) {
     return (
-      <View style={ingStyles.editWrap}>
-        <TextInput
-          style={ingStyles.editInput}
-          value={editName}
-          onChangeText={onEditName}
-          placeholder="Ingredient name"
-          placeholderTextColor={MUTED}
-        />
-        <View style={ingStyles.editCalRow}>
-          <TextInput
-            style={[ingStyles.editInput, { flex: 1 }]}
-            value={editCal}
-            onChangeText={onEditCal}
-            placeholder="Calories"
-            placeholderTextColor={MUTED}
-            keyboardType="number-pad"
-          />
-          <Text style={ingStyles.editCalUnit}>kcal</Text>
-        </View>
-        <View style={ingStyles.editActions}>
-          <Pressable onPress={onCancel} style={ingStyles.editCancel}>
-            <Text style={ingStyles.editCancelText}>Cancel</Text>
-          </Pressable>
-          <Pressable onPress={onSave} style={ingStyles.editSave}>
-            <Text style={ingStyles.editSaveText}>Save</Text>
-          </Pressable>
-        </View>
-      </View>
+      <IngredientEditForm
+        item={item}
+        editName={editName ?? item.name}
+        editCal={editCal ?? String(item.calories)}
+        onEditName={onEditName ?? (() => {})}
+        onEditCal={onEditCal ?? (() => {})}
+        onSave={onSave ?? (() => {})}
+        onCancel={onCancel ?? (() => {})}
+      />
     );
   }
 
@@ -133,6 +194,9 @@ const ingStyles = StyleSheet.create({
     fontSize: TYPE.body, color: "#fff",
   },
   editCalRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  editWeightRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  editWeightArrow: { fontSize: TYPE.sm, color: MUTED },
+  editWeightCal: { fontSize: TYPE.sm, color: ACCENT, fontWeight: "600", minWidth: 55 },
   editCalUnit: { fontSize: TYPE.sm, color: MUTED },
   editActions: { flexDirection: "row", gap: 8 },
   editCancel: {
