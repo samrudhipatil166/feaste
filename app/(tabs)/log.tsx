@@ -43,7 +43,10 @@ interface AnalysisResult {
   perServingFibre?: number;
 }
 
-// ── Ingredient edit form (weight-aware, extracts grams/ml from name) ───────────
+// ── Ingredient edit form ───────────────────────────────────────────────────────
+// Always shows name + weight + calories.
+// Editing weight auto-recalculates calories from original ratio.
+// Editing calories directly leaves weight untouched.
 function IngredientEditForm({
   item, editName, editCal,
   onEditName, onEditCal, onSave, onCancel,
@@ -56,17 +59,19 @@ function IngredientEditForm({
   const weightMatch = item.name.match(/\(~?(\d+(?:\.\d+)?)\s*(g|ml|oz|kg)\b/i);
   const baseWeight = weightMatch ? parseFloat(weightMatch[1]) : null;
   const weightUnit = weightMatch ? weightMatch[2].toLowerCase() : "g";
-  const baseCal = item.calories;
+  const baseCal = item.calories; // original — used for proportional recalc
 
-  const [editWeight, setEditWeight] = useState(baseWeight !== null ? String(Math.round(baseWeight)) : "");
+  const [editWeight, setEditWeight] = useState(
+    baseWeight !== null ? String(Math.round(baseWeight)) : ""
+  );
 
   const handleWeightChange = (val: string) => {
     setEditWeight(val);
     const newW = parseFloat(val);
     if (baseWeight && newW > 0 && baseCal > 0) {
-      const newCal = Math.round(baseCal * (newW / baseWeight));
-      onEditCal(String(newCal));
-      // Update weight in name to stay in sync
+      // Recalculate calories proportionally from original ratio
+      onEditCal(String(Math.round(baseCal * (newW / baseWeight))));
+      // Keep weight in name in sync
       const updated = item.name.replace(
         /\(~?\d+(?:\.\d+)?\s*(?:g|ml|oz|kg)\b/i,
         `(~${Math.round(newW)}${weightUnit}`
@@ -77,6 +82,7 @@ function IngredientEditForm({
 
   return (
     <View style={ingStyles.editWrap}>
+      {/* Name */}
       <TextInput
         style={ingStyles.editInput}
         value={editName}
@@ -84,33 +90,28 @@ function IngredientEditForm({
         placeholder="Ingredient name"
         placeholderTextColor={MUTED}
       />
-      {baseWeight !== null ? (
-        <View style={ingStyles.editWeightRow}>
-          <TextInput
-            style={[ingStyles.editInput, { flex: 1 }]}
-            value={editWeight}
-            onChangeText={handleWeightChange}
-            placeholder="Weight"
-            placeholderTextColor={MUTED}
-            keyboardType="decimal-pad"
-          />
-          <Text style={ingStyles.editCalUnit}>{weightUnit}</Text>
-          <Text style={ingStyles.editWeightArrow}>→</Text>
-          <Text style={ingStyles.editWeightCal}>{editCal} kcal</Text>
-        </View>
-      ) : (
-        <View style={ingStyles.editCalRow}>
-          <TextInput
-            style={[ingStyles.editInput, { flex: 1 }]}
-            value={editCal}
-            onChangeText={onEditCal}
-            placeholder="Calories"
-            placeholderTextColor={MUTED}
-            keyboardType="number-pad"
-          />
-          <Text style={ingStyles.editCalUnit}>kcal</Text>
-        </View>
-      )}
+      {/* Weight + Calories always visible */}
+      <View style={ingStyles.editWeightRow}>
+        <TextInput
+          style={[ingStyles.editInput, { flex: 1 }]}
+          value={editWeight}
+          onChangeText={handleWeightChange}
+          placeholder="Weight"
+          placeholderTextColor={MUTED}
+          keyboardType="decimal-pad"
+        />
+        <Text style={ingStyles.editCalUnit}>{weightUnit}</Text>
+        <Text style={ingStyles.editWeightArrow}>·</Text>
+        <TextInput
+          style={[ingStyles.editInput, { flex: 1 }]}
+          value={editCal}
+          onChangeText={onEditCal}
+          placeholder="Calories"
+          placeholderTextColor={MUTED}
+          keyboardType="number-pad"
+        />
+        <Text style={ingStyles.editCalUnit}>kcal</Text>
+      </View>
       <View style={ingStyles.editActions}>
         <Pressable onPress={onCancel} style={ingStyles.editCancel}>
           <Text style={ingStyles.editCancelText}>Cancel</Text>
