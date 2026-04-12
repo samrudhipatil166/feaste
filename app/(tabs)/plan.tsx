@@ -9,7 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "@/store/useAppStore";
 import { ACCENT, DARK_THEME, TYPE } from "@/constants/theme";
 import { GlowCard } from "@/components/GlowCard";
-import { PHASE_INFO, getPhaseForDay, PHASE_VITAMINS, PCOS_VITAMINS } from "@/constants/cycle";
+import { PHASE_INFO, getPhaseForDay, PHASE_VITAMINS, PCOS_VITAMINS, PHASE_GROCERY_FOODS } from "@/constants/cycle";
 import { CyclePhase } from "@/types";
 
 const PHASE_TAGLINE: Record<CyclePhase, string> = {
@@ -24,7 +24,12 @@ export default function PlanScreen() {
   const profile = useAppStore((s) => s.profile);
   const vitaminsTakenByDate = useAppStore((s) => s.vitaminsTakenByDate);
   const toggleVitaminTakenForDate = useAppStore((s) => s.toggleVitaminTakenForDate);
+  const addGroceryItem = useAppStore((s) => s.addGroceryItem);
+  const groceryItems = useAppStore((s) => s.groceryItems);
+  const planGroceryItems = useAppStore((s) => s.planGroceryItems);
   const [weeklyVisible, setWeeklyVisible] = useState(false);
+  const [expandedDay, setExpandedDay] = useState<number | null>(null);
+  const [groceryAdded, setGroceryAdded] = useState(false);
 
   const phase = PHASE_INFO[currentPhase];
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -43,6 +48,30 @@ export default function PlanScreen() {
   const nextPhaseKey = getPhaseForDay(nextDay, profile.cycleLength);
   const nextPhase = PHASE_INFO[nextPhaseKey];
   const showTomorrow = nextPhaseKey !== currentPhase;
+
+  const closeWeekly = () => {
+    setWeeklyVisible(false);
+    setExpandedDay(null);
+    setGroceryAdded(false);
+  };
+
+  const handleAddWeeklyToGrocery = () => {
+    const allSeen = new Set([...groceryItems, ...planGroceryItems].map((i) => i.name.toLowerCase()));
+    const addedNames = new Set<string>();
+    for (let i = 0; i < 7; i++) {
+      const day = ((cycleDay - 1 + i) % profile.cycleLength) + 1;
+      const phaseKey = getPhaseForDay(day, profile.cycleLength);
+      PHASE_GROCERY_FOODS[phaseKey].forEach((food) => {
+        const key = food.name.toLowerCase();
+        if (!allSeen.has(key) && !addedNames.has(key)) {
+          addGroceryItem({ id: Date.now().toString() + Math.random(), name: food.name, category: food.category, checked: false });
+          addedNames.add(key);
+        }
+      });
+    }
+    setGroceryAdded(true);
+    setTimeout(() => setGroceryAdded(false), 4000);
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -142,27 +171,65 @@ export default function PlanScreen() {
       </ScrollView>
 
       {/* Weekly plan modal */}
-      <Modal visible={weeklyVisible} transparent animationType="slide" onRequestClose={() => setWeeklyVisible(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setWeeklyVisible(false)}>
+      <Modal visible={weeklyVisible} transparent animationType="slide" onRequestClose={closeWeekly}>
+        <Pressable style={styles.modalOverlay} onPress={closeWeekly}>
           <Pressable style={styles.modalSheet} onPress={() => {}}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Next 7 days</Text>
-            {Array.from({ length: 7 }).map((_, i) => {
-              const day = ((cycleDay - 1 + i) % profile.cycleLength) + 1;
-              const phaseKey = getPhaseForDay(day, profile.cycleLength);
-              const p = PHASE_INFO[phaseKey];
-              const dayLabel = i === 0 ? "Today" : i === 1 ? "Tomorrow"
-                : new Date(Date.now() + i * 86400000).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-              return (
-                <View key={i} style={[styles.weekRow, i < 6 && styles.weekRowBorder]}>
-                  <Text style={styles.weekRowLabel}>{dayLabel}</Text>
-                  <View style={styles.weekRowRight}>
-                    <Text style={styles.weekRowEmoji}>{p.emoji}</Text>
-                    <Text style={styles.weekRowPhase}>{p.label.replace(" Phase", "")}</Text>
-                  </View>
-                </View>
-              );
-            })}
+            <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+              {Array.from({ length: 7 }).map((_, i) => {
+                const day = ((cycleDay - 1 + i) % profile.cycleLength) + 1;
+                const phaseKey = getPhaseForDay(day, profile.cycleLength);
+                const p = PHASE_INFO[phaseKey];
+                const dayLabel = i === 0 ? "Today" : i === 1 ? "Tomorrow"
+                  : new Date(Date.now() + i * 86400000).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+                const isExpanded = expandedDay === i;
+                return (
+                  <Pressable
+                    key={i}
+                    onPress={() => setExpandedDay(isExpanded ? null : i)}
+                    style={[styles.weekRow, i < 6 && styles.weekRowBorder]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.weekRowMain}>
+                        <Text style={styles.weekRowLabel}>{dayLabel}</Text>
+                        <View style={styles.weekRowRight}>
+                          <Text style={styles.weekRowEmoji}>{p.emoji}</Text>
+                          <Text style={styles.weekRowPhase}>{p.label.replace(" Phase", "")}</Text>
+                          <Ionicons
+                            name={isExpanded ? "chevron-up" : "chevron-down"}
+                            size={12}
+                            color="rgba(255,255,255,0.25)"
+                          />
+                        </View>
+                      </View>
+                      {isExpanded && (
+                        <View style={styles.weekDayExpanded}>
+                          <Text style={styles.expandLabel}>EASY WINS</Text>
+                          {p.easyWins.slice(0, 3).map((win, j) => (
+                            <Text key={j} style={styles.expandWin}>+ {win}</Text>
+                          ))}
+                          <Text style={[styles.expandLabel, { marginTop: 10 }]}>LIMIT</Text>
+                          <Text style={styles.expandAvoid}>↓ {p.avoid[0]}</Text>
+                          <Text style={styles.expandInsight}>{p.insight}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </Pressable>
+                );
+              })}
+              <Pressable
+                onPress={groceryAdded ? undefined : handleAddWeeklyToGrocery}
+                style={[
+                  styles.groceryAddBtn,
+                  { backgroundColor: groceryAdded ? "rgba(255,255,255,0.06)" : ACCENT },
+                ]}
+              >
+                <Text style={[styles.groceryAddBtnText, { color: groceryAdded ? DARK_THEME.textMuted : "#412402" }]}>
+                  {groceryAdded ? "Added to your grocery list ✓" : "Add this week's foods to grocery list →"}
+                </Text>
+              </Pressable>
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -253,6 +320,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 20, paddingBottom: 40,
     borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+    maxHeight: "82%",
   },
   modalHandle: {
     width: 36, height: 4, borderRadius: 2,
@@ -263,13 +331,33 @@ const styles = StyleSheet.create({
     fontFamily: "Georgia", fontSize: 18,
     color: DARK_THEME.textPrimary, marginBottom: 16, fontWeight: "600",
   },
-  weekRow: {
+  weekRow: { paddingVertical: 13 },
+  weekRowMain: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    paddingVertical: 13,
   },
   weekRowBorder: { borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" },
   weekRowLabel: { fontSize: TYPE.body, color: DARK_THEME.textSecondary, width: 110 },
   weekRowRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   weekRowEmoji: { fontSize: 16 },
   weekRowPhase: { fontSize: TYPE.body, color: DARK_THEME.textPrimary, fontWeight: "500" },
+
+  // Expanded day
+  weekDayExpanded: { paddingTop: 12, paddingBottom: 4, paddingLeft: 2 },
+  expandLabel: {
+    fontSize: 9, color: DARK_THEME.textMuted, fontWeight: "700",
+    letterSpacing: 1.2, marginBottom: 6,
+  },
+  expandWin: { fontSize: TYPE.sm, color: DARK_THEME.textSecondary, lineHeight: 22, marginBottom: 2 },
+  expandAvoid: { fontSize: TYPE.sm, color: "rgba(255,100,100,0.55)", marginBottom: 8 },
+  expandInsight: {
+    fontSize: TYPE.xs, color: "rgba(255,255,255,0.22)",
+    fontStyle: "italic", lineHeight: 18,
+  },
+
+  // Grocery add button
+  groceryAddBtn: {
+    marginTop: 20, marginBottom: 4, paddingVertical: 15,
+    borderRadius: 16, alignItems: "center",
+  },
+  groceryAddBtnText: { fontSize: TYPE.sm, fontWeight: "700" },
 });

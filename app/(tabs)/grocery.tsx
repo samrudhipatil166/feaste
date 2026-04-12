@@ -16,14 +16,24 @@ import { useAppStore } from "@/store/useAppStore";
 import { DARK_THEME } from "@/constants/theme";
 import { GlowCard } from "@/components/GlowCard";
 import { GroceryItem } from "@/types";
-import { PHASE_INFO } from "@/constants/cycle";
+import { PHASE_INFO, PHASE_GROCERY_FOODS } from "@/constants/cycle";
 
-const CATEGORIES = ["Protein", "Vegetables", "Fruits", "Grains", "Dairy", "Seeds & Nuts", "Treats", "Pantry", "Other"];
+const ADD_CATEGORIES = ["Protein", "Produce", "Grains", "Dairy", "Pantry", "Other"];
 
 const CATEGORY_EMOJIS: Record<string, string> = {
   Protein: "🥩", Vegetables: "🥦", Fruits: "🍓", Grains: "🌾",
   Dairy: "🥛", "Seeds & Nuts": "🥜", Treats: "🍫", Pantry: "🫙", Other: "🛒",
+  Produce: "🥬",
 };
+
+function autoCategorize(name: string): string {
+  const n = name.toLowerCase();
+  if (/chicken|salmon|beef|turkey|tuna|egg|fish|shrimp|tofu|lentil|bean|meat|pork|lamb/.test(n)) return "Protein";
+  if (/milk|yogurt|cheese|cream|butter|kefir/.test(n)) return "Dairy";
+  if (/rice|oat|bread|pasta|quinoa|flour|cereal|noodle|grain|rye|spelt|barley/.test(n)) return "Grains";
+  if (/broccoli|spinach|kale|apple|berry|banana|carrot|onion|garlic|tomato|pepper|avocado|ginger|fruit|veg|salad|herb|lemon|lime|orange|sweet potato|potato|cauliflower|sprout|kimchi|leafy|mango|pear|plum|peach|citrus|courgette|zucchini|lettuce|cucumber|celery/.test(n)) return "Produce";
+  return "Pantry";
+}
 
 function ProgressBar({ checked, total, accentColor }: { checked: number; total: number; accentColor: string }) {
   const pct = total > 0 ? checked / total : 0;
@@ -56,20 +66,23 @@ function ProgressBar({ checked, total, accentColor }: { checked: number; total: 
 
 function AddItemRow({ accentColor }: { accentColor: string }) {
   const addGroceryItem = useAppStore((s) => s.addGroceryItem);
-  const groceryItems = useAppStore((s) => s.groceryItems);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("Other");
+  const [hasManualCategory, setHasManualCategory] = useState(false);
   const [showCatPicker, setShowCatPicker] = useState(false);
 
   const handleAdd = () => {
     if (!name.trim()) return;
+    const cat = hasManualCategory ? category : autoCategorize(name.trim());
     addGroceryItem({
       id: Date.now().toString(),
       name: name.trim(),
-      category,
+      category: cat,
       checked: false,
     });
     setName("");
+    setCategory("Other");
+    setHasManualCategory(false);
   };
 
   return (
@@ -83,12 +96,13 @@ function AddItemRow({ accentColor }: { accentColor: string }) {
           placeholderTextColor={DARK_THEME.textMuted}
           onSubmitEditing={handleAdd}
           returnKeyType="done"
+          blurOnSubmit={false}
         />
         <Pressable
           onPress={() => setShowCatPicker((v) => !v)}
           style={styles.catBtn}
         >
-          <Text style={styles.catBtnEmoji}>{CATEGORY_EMOJIS[category]}</Text>
+          <Text style={styles.catBtnEmoji}>{CATEGORY_EMOJIS[category] ?? "🛒"}</Text>
           <Ionicons name="chevron-down" size={12} color={DARK_THEME.textMuted} />
         </Pressable>
         <Pressable
@@ -101,16 +115,16 @@ function AddItemRow({ accentColor }: { accentColor: string }) {
 
       {showCatPicker && (
         <Animated.View entering={FadeIn.duration(200)} style={styles.catPicker}>
-          {CATEGORIES.map((c) => (
+          {ADD_CATEGORIES.map((c) => (
             <Pressable
               key={c}
-              onPress={() => { setCategory(c); setShowCatPicker(false); }}
+              onPress={() => { setCategory(c); setHasManualCategory(true); setShowCatPicker(false); }}
               style={[
                 styles.catOption,
                 category === c && { backgroundColor: `${accentColor}15` },
               ]}
             >
-              <Text style={styles.catOptionEmoji}>{CATEGORY_EMOJIS[c]}</Text>
+              <Text style={styles.catOptionEmoji}>{CATEGORY_EMOJIS[c] ?? "🛒"}</Text>
               <Text style={[styles.catOptionText, category === c && { color: accentColor }]}>{c}</Text>
               {category === c && <Ionicons name="checkmark" size={14} color={accentColor} />}
             </Pressable>
@@ -205,14 +219,26 @@ export default function GroceryScreen() {
   const accentColor = useAppStore((s) => s.accentColor());
 
   const phase = PHASE_INFO[currentPhase];
+  const [phaseAdded, setPhaseAdded] = useState(false);
+  const [phaseMsg, setPhaseMsg] = useState("");
 
   const handleAddPhaseFoods = () => {
+    if (phaseAdded) return;
+    const phaseFoods = PHASE_GROCERY_FOODS[currentPhase];
     const existing = new Set([...groceryItems, ...planGroceryItems].map((i) => i.name.toLowerCase()));
-    phase.easyWins.forEach((win) => {
-      if (!existing.has(win.toLowerCase())) {
-        addGroceryItem({ id: Date.now().toString() + Math.random(), name: win, category: "Other", checked: false });
+    let count = 0;
+    phaseFoods.forEach((food) => {
+      if (!existing.has(food.name.toLowerCase())) {
+        addGroceryItem({ id: Date.now().toString() + Math.random(), name: food.name, category: food.category, checked: false });
+        count++;
       }
     });
+    const msg = count > 0
+      ? `Added ${count} ${phase.label.split(" ")[0].toLowerCase()} phase foods`
+      : "Phase foods already in your list";
+    setPhaseMsg(msg);
+    if (count > 0) setPhaseAdded(true);
+    setTimeout(() => { setPhaseMsg(""); setPhaseAdded(false); }, 4000);
   };
 
   const [showChecked, setShowChecked] = useState(true);
@@ -262,9 +288,11 @@ export default function GroceryScreen() {
           >
             <Text style={styles.phaseFoodsEmoji}>{phase.emoji}</Text>
             <Text style={[styles.phaseFoodsBtnText, { color: accentColor }]}>
-              Add {phase.label.split(" ")[0].toLowerCase()} phase foods to list
+              {phaseMsg || (phaseAdded
+                ? `${phase.label.split(" ")[0]} phase foods added ✓`
+                : `Add ${phase.label.split(" ")[0].toLowerCase()} phase foods to list`)}
             </Text>
-            <Ionicons name="add-circle-outline" size={18} color={accentColor} />
+            <Ionicons name={phaseAdded ? "checkmark-circle" : "add-circle-outline"} size={18} color={accentColor} />
           </Pressable>
         </Animated.View>
 
@@ -289,7 +317,7 @@ export default function GroceryScreen() {
               color={!showChecked ? accentColor : DARK_THEME.textMuted}
             />
             <Text style={[styles.filterBtnText, !showChecked && { color: accentColor }]}>
-              {showChecked ? "Hide checked" : "Show all"}
+              {showChecked ? "Hide checked" : "Show checked"}
             </Text>
           </Pressable>
 

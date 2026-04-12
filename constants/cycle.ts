@@ -174,6 +174,52 @@ export const PCOS_VITAMINS: PhaseVitamin[] = [
   { id: "omega3", name: "Omega-3", dosage: "1000mg", timing: "With meals", reason: "Reduces PCOS-related inflammation" },
 ];
 
+export const PHASE_GROCERY_FOODS: Record<CyclePhase, Array<{ name: string; category: string }>> = {
+  menstrual: [
+    { name: "Salmon fillets", category: "Protein" },
+    { name: "Eggs (dozen)", category: "Protein" },
+    { name: "Spinach", category: "Produce" },
+    { name: "Lentils", category: "Pantry" },
+    { name: "Dark chocolate (85%+)", category: "Pantry" },
+    { name: "Ginger root", category: "Produce" },
+    { name: "Bone broth", category: "Pantry" },
+    { name: "Pumpkin seeds", category: "Pantry" },
+    { name: "Iron-fortified oats", category: "Grains" },
+  ],
+  follicular: [
+    { name: "Eggs (dozen)", category: "Protein" },
+    { name: "Greek yogurt", category: "Dairy" },
+    { name: "Kimchi", category: "Produce" },
+    { name: "Avocados", category: "Produce" },
+    { name: "Chicken breast", category: "Protein" },
+    { name: "Quinoa", category: "Grains" },
+    { name: "Citrus fruits", category: "Produce" },
+    { name: "Pumpkin seeds", category: "Pantry" },
+    { name: "Sprouted grain bread", category: "Grains" },
+  ],
+  ovulatory: [
+    { name: "Broccoli", category: "Produce" },
+    { name: "Brussels sprouts", category: "Produce" },
+    { name: "Flaxseeds", category: "Pantry" },
+    { name: "Mixed berries", category: "Produce" },
+    { name: "Leafy greens", category: "Produce" },
+    { name: "Salmon fillets", category: "Protein" },
+    { name: "Almonds", category: "Pantry" },
+    { name: "Cauliflower", category: "Produce" },
+  ],
+  luteal: [
+    { name: "Sweet potato", category: "Produce" },
+    { name: "Oats", category: "Grains" },
+    { name: "Dark chocolate (85%+)", category: "Pantry" },
+    { name: "Chickpeas", category: "Pantry" },
+    { name: "Chamomile tea", category: "Pantry" },
+    { name: "Brown rice", category: "Grains" },
+    { name: "Leafy greens", category: "Produce" },
+    { name: "Lentils", category: "Pantry" },
+    { name: "Bananas", category: "Produce" },
+  ],
+};
+
 export const DEFAULT_VITAMINS = [
   {
     id: "1",
