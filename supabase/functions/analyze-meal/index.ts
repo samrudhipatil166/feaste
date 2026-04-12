@@ -23,7 +23,36 @@ function buildFormat(phase?: string): string {
     ? PHASE_CONTEXT[phase]
     : "their current cycle phase";
 
-  return `{
+  return `STEP 1 — determine image type:
+Is this a nutrition facts panel / nutrition label printed on food packaging? Answer yes or no internally.
+
+If YES (nutrition label detected), return ONLY this JSON:
+{
+  "isNutritionLabel": true,
+  "servingSize": "serving size text exactly as on label e.g. '30g' or '1 cup (240ml)'",
+  "name": "product name from the packaging",
+  "protein": per_serving_protein_grams,
+  "carbs": per_serving_carbs_grams,
+  "fat": per_serving_fat_grams,
+  "fibre": per_serving_fibre_grams,
+  "confidence": 0.98,
+  "ingredients": [
+    {
+      "name": "product name (per serving)",
+      "protein": per_serving_protein_grams,
+      "carbs": per_serving_carbs_grams,
+      "fat": per_serving_fat_grams,
+      "fibre": per_serving_fibre_grams,
+      "visible": "clear"
+    }
+  ],
+  "phaseNote": "One short warm casual sentence connecting this food to ${phaseDesc}.",
+  "phaseBadge": "Exactly one of: iron-rich, high magnesium, high fibre, good fats, high protein, antioxidant-rich, gut-friendly, blood sugar friendly — or null"
+}
+
+If NO (regular meal photo), return ONLY this JSON:
+{
+  "isNutritionLabel": false,
   "name": "overall meal name — brief and natural",
   "protein": total_grams_number,
   "carbs": total_grams_number,
@@ -32,24 +61,25 @@ function buildFormat(phase?: string): string {
   "confidence": 0_to_1_number,
   "ingredients": [
     {
-      "name": "Ingredient name with estimated weight e.g. Rolled oats (~80g)",
+      "name": "Ingredient with estimated weight e.g. Rolled oats (~80g)",
       "protein": grams_number,
       "carbs": grams_number,
       "fat": grams_number,
-      "fibre": grams_number
+      "fibre": grams_number,
+      "visible": "clear|partial|inferred"
     }
   ],
-  "phaseNote": "One short warm casual sentence — like a knowledgeable friend — connecting this meal to ${phaseDesc}. Never clinical. e.g. 'The oats here give you a slow serotonin lift which is exactly what you need right now.'",
+  "phaseNote": "One short warm casual sentence — like a knowledgeable friend — connecting this meal to ${phaseDesc}. Never clinical.",
   "phaseBadge": "Exactly one of: iron-rich, high magnesium, high fibre, good fats, high protein, antioxidant-rich, gut-friendly, blood sugar friendly — or null if none clearly applies"
 }
 
-Rules:
+Meal analysis rules:
 - List every distinct food item as its own entry in ingredients
-- Include the estimated portion/weight in each ingredient name
+- Set visible to "clear" for clearly visible items, "partial" for partially visible, "inferred" for items implied but not directly seen
 - The totals (protein/carbs/fat/fibre) must equal the sum of the ingredient entries
-- Do NOT include a calories field — calories are calculated from macros as protein×4 + carbs×4 + fat×9
+- Do NOT include a calories field — calories are calculated as protein×4 + carbs×4 + fat×9
 - phaseNote must be conversational and warm, never prescriptive or clinical
-- phaseBadge must be exactly one of the valid options above, or null — never make up a badge`;
+- phaseBadge must be exactly one of the valid options, or null`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -124,21 +154,24 @@ ${format}`;
     if (!jsonMatch) throw new Error("No JSON found in response");
     const result = JSON.parse(jsonMatch[0]);
 
-    // Enforce: totals = sum of ingredients
+    // Enforce: totals = sum of ingredients (skip for nutrition labels — totals are per-serving)
     if (Array.isArray(result.ingredients) && result.ingredients.length > 0) {
-      result.protein = result.ingredients.reduce((s: number, i: { protein?: number }) => s + (i.protein ?? 0), 0);
-      result.carbs   = result.ingredients.reduce((s: number, i: { carbs?: number })   => s + (i.carbs   ?? 0), 0);
-      result.fat     = result.ingredients.reduce((s: number, i: { fat?: number })     => s + (i.fat     ?? 0), 0);
-      result.fibre   = result.ingredients.reduce((s: number, i: { fibre?: number })   => s + (i.fibre   ?? 0), 0);
+      if (!result.isNutritionLabel) {
+        result.protein = result.ingredients.reduce((s: number, i: { protein?: number }) => s + (i.protein ?? 0), 0);
+        result.carbs   = result.ingredients.reduce((s: number, i: { carbs?: number })   => s + (i.carbs   ?? 0), 0);
+        result.fat     = result.ingredients.reduce((s: number, i: { fat?: number })     => s + (i.fat     ?? 0), 0);
+        result.fibre   = result.ingredients.reduce((s: number, i: { fibre?: number })   => s + (i.fibre   ?? 0), 0);
+      }
 
       // Compute calories per ingredient from macros
-      result.ingredients = result.ingredients.map((ing: { name: string; protein?: number; carbs?: number; fat?: number; fibre?: number }) => ({
+      result.ingredients = result.ingredients.map((ing: { name: string; protein?: number; carbs?: number; fat?: number; fibre?: number; visible?: string }) => ({
         ...ing,
         protein: ing.protein ?? 0,
         carbs:   ing.carbs   ?? 0,
         fat:     ing.fat     ?? 0,
         fibre:   ing.fibre   ?? 0,
         calories: Math.round((ing.protein ?? 0) * 4 + (ing.carbs ?? 0) * 4 + (ing.fat ?? 0) * 9),
+        visible: ing.visible ?? "clear",
       }));
     } else {
       // No ingredients — init empty array

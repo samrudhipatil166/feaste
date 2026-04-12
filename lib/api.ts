@@ -31,6 +31,7 @@ export interface IngredientItem {
   fat: number;
   fibre?: number;
   calories: number; // computed from macros
+  visible?: "clear" | "partial" | "inferred";
 }
 
 // Keep for backward compatibility
@@ -47,6 +48,8 @@ export interface MealAnalysis {
   ingredients: IngredientItem[];
   phaseNote?: string;
   phaseBadge?: string;
+  isNutritionLabel?: boolean;
+  servingSize?: string; // e.g. "30g" or "1 cup (240ml)"
 }
 
 export async function analyzeMeal(input: {

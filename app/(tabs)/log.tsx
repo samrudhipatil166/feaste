@@ -34,20 +34,28 @@ interface AnalysisResult {
   ingredients: IngredientItem[];
   phaseNote?: string;
   phaseBadge?: string;
+  isNutritionLabel?: boolean;
+  servingSize?: string;
+  perServingCalories?: number;
+  perServingProtein?: number;
+  perServingCarbs?: number;
+  perServingFat?: number;
+  perServingFibre?: number;
 }
 
 // ── Ingredient breakdown row ───────────────────────────────────────────────────
 function IngredientRow({
-  item, onPress, isEditing, editName, editCal,
-  onEditName, onEditCal, onSave, onCancel, editable,
+  item, onPress, isEditing, isEditMode, editName, editCal,
+  onEditName, onEditCal, onSave, onCancel, onDelete,
 }: {
   item: IngredientItem;
   onPress?: () => void;
   isEditing?: boolean;
+  isEditMode?: boolean;
   editName?: string; editCal?: string;
   onEditName?: (v: string) => void; onEditCal?: (v: string) => void;
   onSave?: () => void; onCancel?: () => void;
-  editable?: boolean;
+  onDelete?: () => void;
 }) {
   if (isEditing) {
     return (
@@ -82,16 +90,28 @@ function IngredientRow({
     );
   }
 
+  const isInferred = item.visible === "inferred";
+  const isPartial  = item.visible === "partial";
+
   return (
-    <Pressable onPress={editable ? onPress : undefined} style={ingStyles.row}>
+    <Pressable onPress={isEditMode ? onPress : undefined} style={ingStyles.row}>
       <View style={{ flex: 1 }}>
-        <Text style={ingStyles.name}>{item.name}</Text>
+        <Text style={isInferred ? ingStyles.nameInferred : ingStyles.name}>
+          {isPartial  && <Text style={ingStyles.partialPrefix}>{"~ "}</Text>}
+          {isInferred && <Text style={ingStyles.inferredPrefix}>{"likely "}</Text>}
+          {item.name}
+        </Text>
         <Text style={ingStyles.macros}>
           P:{item.protein}g  C:{item.carbs}g  F:{item.fat}g
           {item.fibre ? `  Fibre:${item.fibre}g` : ""}
         </Text>
       </View>
       <Text style={ingStyles.cal}>{item.calories} kcal</Text>
+      {isEditMode && (
+        <Pressable onPress={onDelete} style={ingStyles.deleteBtn} hitSlop={8}>
+          <Ionicons name="close" size={14} color="rgba(248,113,113,0.55)" />
+        </Pressable>
+      )}
     </Pressable>
   );
 }
@@ -99,8 +119,12 @@ function IngredientRow({
 const ingStyles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "flex-start", paddingVertical: 10 },
   name: { fontSize: TYPE.body, color: SECONDARY, fontWeight: "500" },
+  nameInferred: { fontSize: TYPE.body, color: MUTED, fontWeight: "400" },
+  partialPrefix: { color: ACCENT },
+  inferredPrefix: { color: MUTED, fontStyle: "italic" },
   macros: { fontSize: TYPE.xs, color: MUTED, marginTop: 3 },
   cal: { fontSize: TYPE.sm, color: ACCENT, fontWeight: "600", marginLeft: 8, marginTop: 2 },
+  deleteBtn: { padding: 4, marginLeft: 4, marginTop: 1 },
   editWrap: { paddingVertical: 8, gap: 8 },
   editInput: {
     backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 10,
@@ -124,39 +148,92 @@ const ingStyles = StyleSheet.create({
 // ── Breakdown section (shared by result card and expanded meal card) ────────────
 function BreakdownSection({
   ingredients, totalCalories, phaseNote,
-  editable, editingIdx, editName, editCal,
+  editingIdx, editName, editCal,
   onEditRow, onEditName, onEditCal, onSaveEdit, onCancelEdit,
+  onDeleteIngredient, onAddIngredient,
 }: {
   ingredients: IngredientItem[];
   totalCalories: number;
   phaseNote?: string;
-  editable?: boolean;
   editingIdx?: number | null;
   editName?: string; editCal?: string;
   onEditRow?: (i: number) => void;
   onEditName?: (v: string) => void; onEditCal?: (v: string) => void;
   onSaveEdit?: () => void; onCancelEdit?: () => void;
+  onDeleteIngredient?: (i: number) => void;
+  onAddIngredient?: (name: string, calories: number) => void;
 }) {
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [addName, setAddName] = useState("");
+  const [addCal, setAddCal] = useState("");
+
+  const handleAddNew = () => {
+    if (!addName.trim()) return;
+    onAddIngredient?.(addName.trim(), parseInt(addCal) || 0);
+    setAddName("");
+    setAddCal("");
+  };
+
+  const canEdit = !!onAddIngredient;
+
   return (
     <View style={bdStyles.wrap}>
-      <Text style={bdStyles.title}>How we got there</Text>
+      <View style={bdStyles.titleRow}>
+        <Text style={bdStyles.title}>How we got there</Text>
+        {isEditMode && (
+          <Pressable onPress={() => { setIsEditMode(false); setAddName(""); setAddCal(""); }}>
+            <Text style={bdStyles.doneLink}>Done</Text>
+          </Pressable>
+        )}
+      </View>
       {ingredients.map((ing, i) => (
         <View key={i}>
           {i > 0 && <View style={bdStyles.divider} />}
           <IngredientRow
             item={ing}
-            editable={editable}
+            isEditMode={isEditMode}
             onPress={() => onEditRow?.(i)}
-            isEditing={editable && editingIdx === i}
+            isEditing={isEditMode && editingIdx === i}
             editName={editName}
             editCal={editCal}
             onEditName={onEditName}
             onEditCal={onEditCal}
             onSave={onSaveEdit}
             onCancel={onCancelEdit}
+            onDelete={() => onDeleteIngredient?.(i)}
           />
         </View>
       ))}
+      {isEditMode && (
+        <View>
+          <View style={bdStyles.divider} />
+          <View style={bdStyles.addIngRow}>
+            <TextInput
+              style={[bdStyles.addIngInput, { flex: 2 }]}
+              value={addName}
+              onChangeText={setAddName}
+              placeholder="Add ingredient..."
+              placeholderTextColor={MUTED}
+              onSubmitEditing={handleAddNew}
+              returnKeyType="done"
+            />
+            <TextInput
+              style={[bdStyles.addIngInput, { flex: 1 }]}
+              value={addCal}
+              onChangeText={setAddCal}
+              placeholder="kcal"
+              placeholderTextColor={MUTED}
+              keyboardType="number-pad"
+            />
+            <Pressable
+              onPress={handleAddNew}
+              style={[bdStyles.addIngBtn, { backgroundColor: addName.trim() ? ACCENT : "rgba(255,255,255,0.06)" }]}
+            >
+              <Ionicons name="add" size={16} color={addName.trim() ? BTN_TEXT : MUTED} />
+            </Pressable>
+          </View>
+        </View>
+      )}
       <View style={bdStyles.divider} />
       <View style={bdStyles.totalRow}>
         <Text style={bdStyles.totalLabel}>Total</Text>
@@ -165,6 +242,14 @@ function BreakdownSection({
       {phaseNote ? (
         <Text style={bdStyles.phaseNote}>{phaseNote}</Text>
       ) : null}
+      {canEdit && !isEditMode && (
+        <View style={bdStyles.missingRow}>
+          <Text style={bdStyles.missingText}>something missing or wrong?</Text>
+          <Pressable onPress={() => setIsEditMode(true)}>
+            <Text style={bdStyles.missingLink}>edit ingredients →</Text>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
@@ -180,10 +265,12 @@ const bdStyles = StyleSheet.create({
     paddingTop: 4,
     paddingBottom: 8,
   },
-  title: {
-    fontSize: 9, color: MUTED, fontWeight: "700",
-    letterSpacing: 1.2, marginBottom: 4, marginTop: 10,
+  titleRow: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    marginTop: 10, marginBottom: 4,
   },
+  title: { fontSize: 9, color: MUTED, fontWeight: "700", letterSpacing: 1.2 },
+  doneLink: { fontSize: TYPE.xs, color: ACCENT, fontWeight: "600" },
   divider: { height: 1, backgroundColor: DIVIDER },
   totalRow: {
     flexDirection: "row", justifyContent: "space-between",
@@ -195,6 +282,23 @@ const bdStyles = StyleSheet.create({
     fontSize: TYPE.sm, color: MUTED, fontStyle: "italic",
     lineHeight: 18, marginTop: 4, marginBottom: 8,
   },
+  addIngRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 10 },
+  addIngInput: {
+    backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 8,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.10)",
+    paddingHorizontal: 10, paddingVertical: 7,
+    fontSize: TYPE.sm, color: "#fff",
+  },
+  addIngBtn: {
+    width: 32, height: 32, borderRadius: 8,
+    alignItems: "center", justifyContent: "center",
+  },
+  missingRow: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingTop: 4, paddingBottom: 6,
+  },
+  missingText: { fontSize: TYPE.xs, color: MUTED },
+  missingLink: { fontSize: TYPE.xs, color: ACCENT, fontWeight: "600" },
 });
 
 // ── Result card (photo + text mode result) ─────────────────────────────────────
@@ -203,12 +307,13 @@ function ResultCard({
   onPrimary, onAdd,
   editingIdx, editName, editCal,
   onEditRow, onEditName, onEditCal, onSaveEdit, onCancelEdit,
+  onDeleteIngredient, onAddIngredient,
 }: {
   result: AnalysisResult;
   mode: "photo" | "text";
   noteText: string;
   onNoteChange: (v: string) => void;
-  onPrimary: () => void; // Retake or Edit
+  onPrimary: () => void;
   onAdd: () => void;
   editingIdx: number | null;
   editName: string; editCal: string;
@@ -217,8 +322,19 @@ function ResultCard({
   onEditCal: (v: string) => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
+  onDeleteIngredient: (i: number) => void;
+  onAddIngredient: (name: string, calories: number) => void;
+  serving: number;
+  onServingChange: (v: number) => void;
 }) {
   const conf = Math.round(result.confidence * 100);
+  const confNote = result.isNutritionLabel
+    ? "read directly from nutrition label"
+    : conf < 70
+    ? "photo is unclear — consider adding a note for better accuracy"
+    : conf < 90
+    ? "tap to check ingredients look right"
+    : null;
 
   return (
     <Animated.View entering={FadeInDown.duration(350)} style={rcStyles.card}>
@@ -227,6 +343,13 @@ function ResultCard({
         <View style={{ flex: 1, marginRight: 12 }}>
           <Text style={rcStyles.mealName}>{result.name}</Text>
           <Text style={rcStyles.confidence}>{conf}% confident</Text>
+          {confNote ? (
+            <Text style={[rcStyles.confidenceNote, {
+              color: result.isNutritionLabel ? "#6ee7b7" : conf < 70 ? `${ACCENT}bb` : MUTED,
+            }]}>
+              {confNote}
+            </Text>
+          ) : null}
         </View>
         <View style={rcStyles.calBlock}>
           <Text style={rcStyles.calories}>{result.calories}</Text>
@@ -249,13 +372,36 @@ function ResultCard({
         ))}
       </View>
 
+      {/* Serving adjuster — only for nutrition labels */}
+      {result.isNutritionLabel && result.servingSize && (
+        <View style={rcStyles.servingRow}>
+          <Text style={rcStyles.servingLabel}>How much did you have?</Text>
+          <View style={rcStyles.servingControls}>
+            <Pressable
+              onPress={() => onServingChange(Math.max(0.5, serving - 0.5))}
+              style={rcStyles.servingBtn}
+            >
+              <Text style={rcStyles.servingBtnText}>−</Text>
+            </Pressable>
+            <Text style={rcStyles.servingValue}>
+              {serving === 1 ? `1 × ${result.servingSize}` : `${serving} × ${result.servingSize}`}
+            </Text>
+            <Pressable
+              onPress={() => onServingChange(serving + 0.5)}
+              style={rcStyles.servingBtn}
+            >
+              <Text style={rcStyles.servingBtnText}>+</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
       {/* Ingredient breakdown */}
       {result.ingredients.length > 0 && (
         <BreakdownSection
           ingredients={result.ingredients}
           totalCalories={result.calories}
           phaseNote={result.phaseNote}
-          editable={mode === "text"}
           editingIdx={editingIdx}
           editName={editName}
           editCal={editCal}
@@ -264,6 +410,8 @@ function ResultCard({
           onEditCal={onEditCal}
           onSaveEdit={onSaveEdit}
           onCancelEdit={onCancelEdit}
+          onDeleteIngredient={onDeleteIngredient}
+          onAddIngredient={onAddIngredient}
         />
       )}
 
@@ -305,6 +453,7 @@ const rcStyles = StyleSheet.create({
     color: "#fff", fontWeight: "600", lineHeight: 24,
   },
   confidence: { fontSize: TYPE.xs, color: MUTED, marginTop: 4 },
+  confidenceNote: { fontSize: TYPE.xs, marginTop: 2, fontStyle: "italic", lineHeight: 16 },
   calBlock: { alignItems: "flex-end" },
   calories: { fontSize: 32, fontWeight: "800", color: ACCENT, lineHeight: 36 },
   kcalLabel: { fontSize: TYPE.xs, color: MUTED, marginTop: 1 },
@@ -333,6 +482,22 @@ const rcStyles = StyleSheet.create({
     minHeight: 44,
     marginBottom: 14,
   },
+
+  servingRow: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    marginBottom: 10, paddingVertical: 10, paddingHorizontal: 12,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+  },
+  servingLabel: { fontSize: TYPE.sm, color: SECONDARY },
+  servingControls: { flexDirection: "row", alignItems: "center", gap: 10 },
+  servingBtn: {
+    width: 28, height: 28, borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center", justifyContent: "center",
+  },
+  servingBtnText: { fontSize: 16, color: ACCENT, fontWeight: "700", lineHeight: 20 },
+  servingValue: { fontSize: TYPE.sm, color: ACCENT, fontWeight: "600", textAlign: "center" as const, minWidth: 90 },
 
   actions: { flexDirection: "row", gap: 10 },
   secondaryBtn: {
@@ -452,6 +617,7 @@ export default function LogScreen() {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editCal, setEditCal] = useState("");
+  const [servingCount, setServingCount] = useState(1);
 
   // Manual state
   const [manualName, setManualName] = useState("");
@@ -477,7 +643,7 @@ export default function LogScreen() {
   };
 
   const clearResult = () => {
-    setResult(null); setResultNote(""); setEditingIdx(null); setEditName(""); setEditCal("");
+    setResult(null); setResultNote(""); setEditingIdx(null); setEditName(""); setEditCal(""); setServingCount(1);
   };
 
   const switchMode = (m: InputMode) => {
@@ -495,6 +661,7 @@ export default function LogScreen() {
     const fat     = Number(raw.fat     ?? 0);
     const fibre   = Number(raw.fibre   ?? 0);
     const calories = Math.round(protein * 4 + carbs * 4 + fat * 9);
+    const isNutritionLabel = raw.isNutritionLabel === true;
     return {
       name:        String(raw.name ?? "Meal"),
       protein, carbs, fat, fibre, calories,
@@ -505,6 +672,14 @@ export default function LogScreen() {
       })),
       phaseNote:   raw.phaseNote ? String(raw.phaseNote) : undefined,
       phaseBadge:  raw.phaseBadge ? String(raw.phaseBadge) : undefined,
+      isNutritionLabel,
+      servingSize: raw.servingSize ? String(raw.servingSize) : undefined,
+      // Store per-serving base macros for scaling when user adjusts portions
+      perServingCalories: isNutritionLabel ? calories : undefined,
+      perServingProtein:  isNutritionLabel ? protein  : undefined,
+      perServingCarbs:    isNutritionLabel ? carbs    : undefined,
+      perServingFat:      isNutritionLabel ? fat      : undefined,
+      perServingFibre:    isNutritionLabel ? fibre    : undefined,
     };
   };
 
@@ -598,6 +773,41 @@ export default function LogScreen() {
   };
 
   const cancelIngEdit = () => setEditingIdx(null);
+
+  const deleteIngredient = (idx: number) => {
+    if (!result) return;
+    const updated = result.ingredients.filter((_, i) => i !== idx);
+    const totalCal = updated.reduce((s, ing) => s + ing.calories, 0);
+    setResult({ ...result, ingredients: updated, calories: totalCal });
+    if (editingIdx === idx) setEditingIdx(null);
+  };
+
+  const addIngredient = (name: string, calories: number) => {
+    if (!result) return;
+    const newIng: IngredientItem = { name, protein: 0, carbs: 0, fat: 0, calories };
+    const updated = [...result.ingredients, newIng];
+    const totalCal = updated.reduce((s, ing) => s + ing.calories, 0);
+    setResult({ ...result, ingredients: updated, calories: totalCal });
+  };
+
+  const handleServingChange = (count: number) => {
+    if (!result?.isNutritionLabel) return;
+    setServingCount(count);
+    const pCal   = result.perServingCalories ?? result.calories;
+    const pProt  = result.perServingProtein  ?? result.protein;
+    const pCarbs = result.perServingCarbs    ?? result.carbs;
+    const pFat   = result.perServingFat      ?? result.fat;
+    const pFibre = result.perServingFibre    ?? result.fibre;
+    const sc = (v: number) => Math.round(v * count * 10) / 10;
+    setResult({
+      ...result,
+      calories: Math.round(pCal * count),
+      protein: sc(pProt), carbs: sc(pCarbs), fat: sc(pFat), fibre: sc(pFibre),
+      ingredients: result.ingredients.length > 0
+        ? [{ ...result.ingredients[0], calories: Math.round(pCal * count), protein: sc(pProt), carbs: sc(pCarbs), fat: sc(pFat), fibre: sc(pFibre) }]
+        : [],
+    });
+  };
 
   // ── Manual add ────────────────────────────────────────────────────────────────
 
@@ -728,6 +938,10 @@ export default function LogScreen() {
               onEditCal={setEditCal}
               onSaveEdit={saveIngEdit}
               onCancelEdit={cancelIngEdit}
+              onDeleteIngredient={deleteIngredient}
+              onAddIngredient={addIngredient}
+              serving={servingCount}
+              onServingChange={handleServingChange}
             />
           )}
 
