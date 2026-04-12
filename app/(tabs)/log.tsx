@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "@/store/useAppStore";
 import { ACCENT, DARK_THEME, TYPE } from "@/constants/theme";
 import { analyzeMeal, analyzeMealPhoto, type IngredientItem } from "@/lib/api";
+import { safeRound } from "@/lib/format";
 import { FoodEntry, MealType } from "@/types";
 import { PHASE_INFO, PHASE_VITAMINS, PCOS_VITAMINS } from "@/constants/cycle";
 
@@ -164,11 +165,11 @@ function IngredientRow({
           {item.name}
         </Text>
         <Text style={ingStyles.macros}>
-          P:{item.protein}g  C:{item.carbs}g  F:{item.fat}g
-          {item.fibre ? `  Fibre:${item.fibre}g` : ""}
+          P:{safeRound(item.protein)}g  C:{safeRound(item.carbs)}g  F:{safeRound(item.fat)}g
+          {item.fibre ? `  Fibre:${safeRound(item.fibre)}g` : ""}
         </Text>
       </View>
-      <Text style={ingStyles.cal}>{item.calories} kcal</Text>
+      <Text style={ingStyles.cal}>{safeRound(item.calories)} kcal</Text>
       {isEditMode && (
         <Pressable onPress={onDelete} style={ingStyles.deleteBtn} hitSlop={8}>
           <Ionicons name="close" size={14} color="rgba(248,113,113,0.55)" />
@@ -210,6 +211,166 @@ const ingStyles = StyleSheet.create({
   editSaveText: { fontSize: TYPE.sm, fontWeight: "700", color: BTN_TEXT },
 });
 
+// ── Add ingredient form (auto-lookup via API) ─────────────────────────────────
+const WEIGHT_UNITS = ["g", "ml", "tbsp", "tsp", "cup", "piece"] as const;
+type WeightUnit = typeof WEIGHT_UNITS[number];
+
+function AddIngredientForm({
+  onAdd,
+}: {
+  onAdd: (name: string, calories: number, protein: number, carbs: number, fat: number, fibre: number) => void;
+}) {
+  const currentPhase = useAppStore((s) => s.currentPhase);
+  const [name, setName]         = useState("");
+  const [weight, setWeight]     = useState("");
+  const [unit, setUnit]         = useState<WeightUnit>("g");
+  const [calories, setCalories] = useState("");
+  const [protein, setProtein]   = useState("");
+  const [carbs, setCarbs]       = useState("");
+  const [fat, setFat]           = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [calcFailed, setCalcFailed] = useState(false);
+  const [calcDone, setCalcDone]     = useState(false);
+
+  const doLookup = async () => {
+    if (!name.trim() || !weight.trim()) return;
+    setLoading(true);
+    setCalcFailed(false);
+    setCalcDone(false);
+    const desc = `${weight}${unit} of ${name.trim()}`;
+    const res = await analyzeMeal({ type: "text", description: desc, phase: currentPhase });
+    setLoading(false);
+    if (res) {
+      setCalories(String(safeRound(res.calories)));
+      setProtein(String(safeRound(res.protein)));
+      setCarbs(String(safeRound(res.carbs)));
+      setFat(String(safeRound(res.fat)));
+      setCalcDone(true);
+    } else {
+      setCalcFailed(true);
+      setCalcDone(true);
+    }
+  };
+
+  const reset = () => {
+    setName(""); setWeight(""); setUnit("g");
+    setCalories(""); setProtein(""); setCarbs(""); setFat("");
+    setCalcDone(false); setCalcFailed(false);
+  };
+
+  const handleAdd = () => {
+    if (!name.trim()) return;
+    const displayName = weight.trim() ? `${name.trim()} (~${weight}${unit})` : name.trim();
+    onAdd(
+      displayName,
+      safeRound(parseInt(calories) || 0),
+      safeRound(parseInt(protein) || 0),
+      safeRound(parseInt(carbs) || 0),
+      safeRound(parseInt(fat) || 0),
+      0,
+    );
+    reset();
+  };
+
+  return (
+    <View style={afStyles.wrap}>
+      {/* Name */}
+      <TextInput
+        style={afStyles.input}
+        value={name}
+        onChangeText={(v) => { setName(v); setCalcDone(false); }}
+        placeholder="Ingredient name"
+        placeholderTextColor={MUTED}
+        onEndEditing={doLookup}
+        returnKeyType="next"
+      />
+      {/* Weight + unit row */}
+      <View style={afStyles.weightRow}>
+        <TextInput
+          style={[afStyles.input, { width: 72 }]}
+          value={weight}
+          onChangeText={(v) => { setWeight(v); setCalcDone(false); }}
+          placeholder="Amount"
+          placeholderTextColor={MUTED}
+          keyboardType="decimal-pad"
+          onEndEditing={doLookup}
+        />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+          <View style={afStyles.unitRow}>
+            {WEIGHT_UNITS.map((u) => (
+              <Pressable
+                key={u}
+                onPress={() => setUnit(u)}
+                style={[afStyles.unitPill, unit === u && { backgroundColor: `${ACCENT}28`, borderColor: ACCENT }]}
+              >
+                <Text style={[afStyles.unitText, unit === u && { color: ACCENT }]}>{u}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+
+      {/* Loading */}
+      {loading && (
+        <View style={afStyles.loadingRow}>
+          <ActivityIndicator size="small" color={ACCENT} />
+          <Text style={afStyles.loadingText}>calculating...</Text>
+        </View>
+      )}
+
+      {/* Calc results */}
+      {calcDone && !loading && (
+        calcFailed ? (
+          <Text style={afStyles.calcFailed}>couldn't auto-calculate — add values manually</Text>
+        ) : (
+          <View style={afStyles.resultsWrap}>
+            <View style={afStyles.calResultRow}>
+              <Text style={afStyles.calResultLabel}>Calories</Text>
+              <TextInput
+                style={afStyles.calResultInput}
+                value={calories}
+                onChangeText={setCalories}
+                keyboardType="number-pad"
+                placeholderTextColor={MUTED}
+              />
+              <Text style={afStyles.calResultUnit}>kcal</Text>
+            </View>
+            <View style={afStyles.macroResultRow}>
+              {([
+                { label: "Protein", short: "P", val: protein, set: setProtein },
+                { label: "Carbs",   short: "C", val: carbs,   set: setCarbs   },
+                { label: "Fat",     short: "F", val: fat,     set: setFat     },
+              ] as const).map(({ short, val, set }) => (
+                <View key={short} style={afStyles.macroCell}>
+                  <TextInput
+                    style={afStyles.macroInput}
+                    value={val}
+                    onChangeText={set as (v: string) => void}
+                    keyboardType="decimal-pad"
+                    placeholderTextColor={MUTED}
+                    placeholder="0"
+                  />
+                  <Text style={afStyles.macroUnit}>{short}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )
+      )}
+
+      {/* Add button */}
+      <Pressable
+        onPress={handleAdd}
+        style={[afStyles.addBtn, { backgroundColor: name.trim() ? ACCENT : "rgba(255,255,255,0.06)" }]}
+      >
+        <Text style={[afStyles.addBtnText, { color: name.trim() ? BTN_TEXT : MUTED }]}>
+          + Add ingredient
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
 // ── Breakdown section (shared by result card and expanded meal card) ────────────
 function BreakdownSection({
   ingredients, totalCalories, phaseNote,
@@ -226,18 +387,9 @@ function BreakdownSection({
   onEditName?: (v: string) => void; onEditCal?: (v: string) => void;
   onSaveEdit?: () => void; onCancelEdit?: () => void;
   onDeleteIngredient?: (i: number) => void;
-  onAddIngredient?: (name: string, calories: number) => void;
+  onAddIngredient?: (name: string, calories: number, protein: number, carbs: number, fat: number, fibre: number) => void;
 }) {
   const [isEditMode, setIsEditMode] = useState(false);
-  const [addName, setAddName] = useState("");
-  const [addCal, setAddCal] = useState("");
-
-  const handleAddNew = () => {
-    if (!addName.trim()) return;
-    onAddIngredient?.(addName.trim(), parseInt(addCal) || 0);
-    setAddName("");
-    setAddCal("");
-  };
 
   const canEdit = !!onAddIngredient;
 
@@ -246,7 +398,7 @@ function BreakdownSection({
       <View style={bdStyles.titleRow}>
         <Text style={bdStyles.title}>How we got there</Text>
         {isEditMode && (
-          <Pressable onPress={() => { setIsEditMode(false); setAddName(""); setAddCal(""); }}>
+          <Pressable onPress={() => setIsEditMode(false)}>
             <Text style={bdStyles.doneLink}>Done</Text>
           </Pressable>
         )}
@@ -269,40 +421,16 @@ function BreakdownSection({
           />
         </View>
       ))}
-      {isEditMode && (
+      {isEditMode && onAddIngredient && (
         <View>
           <View style={bdStyles.divider} />
-          <View style={bdStyles.addIngRow}>
-            <TextInput
-              style={[bdStyles.addIngInput, { flex: 2 }]}
-              value={addName}
-              onChangeText={setAddName}
-              placeholder="Add ingredient..."
-              placeholderTextColor={MUTED}
-              onSubmitEditing={handleAddNew}
-              returnKeyType="done"
-            />
-            <TextInput
-              style={[bdStyles.addIngInput, { flex: 1 }]}
-              value={addCal}
-              onChangeText={setAddCal}
-              placeholder="kcal"
-              placeholderTextColor={MUTED}
-              keyboardType="number-pad"
-            />
-            <Pressable
-              onPress={handleAddNew}
-              style={[bdStyles.addIngBtn, { backgroundColor: addName.trim() ? ACCENT : "rgba(255,255,255,0.06)" }]}
-            >
-              <Ionicons name="add" size={16} color={addName.trim() ? BTN_TEXT : MUTED} />
-            </Pressable>
-          </View>
+          <AddIngredientForm onAdd={onAddIngredient} />
         </View>
       )}
       <View style={bdStyles.divider} />
       <View style={bdStyles.totalRow}>
         <Text style={bdStyles.totalLabel}>Total</Text>
-        <Text style={bdStyles.totalCal}>{totalCalories} kcal</Text>
+        <Text style={bdStyles.totalCal}>{safeRound(totalCalories)} kcal</Text>
       </View>
       {phaseNote ? (
         <Text style={bdStyles.phaseNote}>{phaseNote}</Text>
@@ -366,6 +494,51 @@ const bdStyles = StyleSheet.create({
   missingLink: { fontSize: TYPE.xs, color: ACCENT, fontWeight: "600" },
 });
 
+const afStyles = StyleSheet.create({
+  wrap: { paddingVertical: 12, gap: 8 },
+  input: {
+    backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 8,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.10)",
+    paddingHorizontal: 10, paddingVertical: 7,
+    fontSize: TYPE.sm, color: "#fff",
+  },
+  weightRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  unitRow: { flexDirection: "row", gap: 6, alignItems: "center", paddingHorizontal: 2 },
+  unitPill: {
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.10)",
+  },
+  unitText: { fontSize: TYPE.xs, color: MUTED, fontWeight: "500" },
+  loadingRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  loadingText: { fontSize: TYPE.xs, color: MUTED, fontStyle: "italic" },
+  calcFailed: { fontSize: TYPE.xs, color: MUTED, fontStyle: "italic" },
+  resultsWrap: { gap: 6 },
+  calResultRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  calResultLabel: { fontSize: TYPE.xs, color: MUTED, width: 52 },
+  calResultInput: {
+    flex: 1, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 8,
+    borderWidth: 1, borderColor: `${ACCENT}50`,
+    paddingHorizontal: 10, paddingVertical: 6,
+    fontSize: TYPE.sm, color: ACCENT, fontWeight: "600",
+  },
+  calResultUnit: { fontSize: TYPE.xs, color: MUTED },
+  macroResultRow: { flexDirection: "row", gap: 8 },
+  macroCell: { flex: 1, flexDirection: "row", alignItems: "center", gap: 4 },
+  macroInput: {
+    flex: 1, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 8,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.10)",
+    paddingHorizontal: 8, paddingVertical: 6,
+    fontSize: TYPE.sm, color: "#fff", textAlign: "center" as const,
+  },
+  macroUnit: { fontSize: TYPE.xs, color: MUTED },
+  addBtn: {
+    paddingVertical: 9, borderRadius: 10,
+    alignItems: "center", justifyContent: "center",
+  },
+  addBtnText: { fontSize: TYPE.sm, fontWeight: "700" },
+});
+
 // ── Result card (photo + text mode result) ─────────────────────────────────────
 function ResultCard({
   result, mode, noteText, onNoteChange,
@@ -388,7 +561,7 @@ function ResultCard({
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   onDeleteIngredient: (i: number) => void;
-  onAddIngredient: (name: string, calories: number) => void;
+  onAddIngredient: (name: string, calories: number, protein: number, carbs: number, fat: number, fibre: number) => void;
   serving: number;
   onServingChange: (v: number) => void;
 }) {
@@ -417,7 +590,7 @@ function ResultCard({
           ) : null}
         </View>
         <View style={rcStyles.calBlock}>
-          <Text style={rcStyles.calories}>{result.calories}</Text>
+          <Text style={rcStyles.calories}>{safeRound(result.calories)}</Text>
           <Text style={rcStyles.kcalLabel}>kcal</Text>
         </View>
       </View>
@@ -431,7 +604,7 @@ function ResultCard({
           { label: "Fibre",   value: result.fibre },
         ].map((m) => (
           <View key={m.label} style={rcStyles.macroCell}>
-            <Text style={rcStyles.macroValue}>{m.value}g</Text>
+            <Text style={rcStyles.macroValue}>{safeRound(m.value)}g</Text>
             <Text style={rcStyles.macroLabel}>{m.label}</Text>
           </View>
         ))}
@@ -594,12 +767,12 @@ function ExpandableMealCard({ entry }: { entry: FoodEntry }) {
             )}
           </View>
           <Text style={emcStyles.macros}>
-            P:{entry.protein}g · C:{entry.carbs}g · F:{entry.fat}g
-            {entry.fibre ? ` · Fibre:${entry.fibre}g` : ""}
+            P:{safeRound(entry.protein)}g · C:{safeRound(entry.carbs)}g · F:{safeRound(entry.fat)}g
+            {entry.fibre ? ` · Fibre:${safeRound(entry.fibre)}g` : ""}
           </Text>
         </View>
         <View style={emcStyles.calBlock}>
-          <Text style={emcStyles.cal}>{entry.calories} kcal</Text>
+          <Text style={emcStyles.cal}>{safeRound(entry.calories)} kcal</Text>
           <Ionicons
             name={expanded ? "chevron-up" : "chevron-down"}
             size={14}
@@ -847,12 +1020,15 @@ export default function LogScreen() {
     if (editingIdx === idx) setEditingIdx(null);
   };
 
-  const addIngredient = (name: string, calories: number) => {
+  const addIngredient = (name: string, calories: number, protein = 0, carbs = 0, fat = 0, fibre = 0) => {
     if (!result) return;
-    const newIng: IngredientItem = { name, protein: 0, carbs: 0, fat: 0, calories };
+    const newIng: IngredientItem = { name, protein, carbs, fat, fibre, calories };
     const updated = [...result.ingredients, newIng];
-    const totalCal = updated.reduce((s, ing) => s + ing.calories, 0);
-    setResult({ ...result, ingredients: updated, calories: totalCal });
+    const totalCal = updated.reduce((s, ing) => s + safeRound(ing.calories), 0);
+    const totalP = updated.reduce((s, ing) => s + safeRound(ing.protein), 0);
+    const totalC = updated.reduce((s, ing) => s + safeRound(ing.carbs), 0);
+    const totalF = updated.reduce((s, ing) => s + safeRound(ing.fat), 0);
+    setResult({ ...result, ingredients: updated, calories: totalCal, protein: totalP, carbs: totalC, fat: totalF });
   };
 
   const handleServingChange = (count: number) => {
