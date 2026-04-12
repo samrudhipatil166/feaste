@@ -38,7 +38,7 @@ function MacroBar({
       <View style={styles.macroTrack}>
         <View style={[styles.macroFill, { width: `${pct * 100}%` as any, backgroundColor: color }]} />
       </View>
-      <Text style={[styles.macroRemaining, over && { color: "#f87171" }]}>
+      <Text style={[styles.macroRemaining, over && { color: "#d97706" }]}>
         {over ? `${consumed - goal}g over` : `${remaining}g left`}
       </Text>
     </View>
@@ -96,7 +96,7 @@ export default function TodayScreen() {
           <GlowCard glowColor={over ? "#f87171" : accentColor} style={styles.card}>
             <View style={styles.calRow}>
               <View>
-                <Text style={[styles.calRemaining, { color: over ? "#f87171" : accentColor }]}>
+                <Text style={[styles.calRemaining, { color: over ? "#d97706" : accentColor }]}>
                   {over ? `${consumed.cal - profile.calorieGoal}` : `${remaining}`}
                 </Text>
                 <Text style={styles.calRemainingLabel}>
@@ -114,7 +114,7 @@ export default function TodayScreen() {
             <View style={styles.calBarTrack}>
               <View style={[
                 styles.calBarFill,
-                { width: `${calPct * 100}%` as any, backgroundColor: over ? "#f87171" : accentColor },
+                { width: `${calPct * 100}%` as any, backgroundColor: over ? "#d97706" : accentColor },
               ]} />
             </View>
           </GlowCard>

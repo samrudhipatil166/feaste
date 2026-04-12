@@ -101,6 +101,12 @@ export default function OnboardingScreen() {
             <Text style={styles.stepEmoji}>🍽️</Text>
             <Text style={styles.stepTitle}>Any dietary requirements?</Text>
             <Text style={styles.stepSubtitle}>We'll tailor food suggestions to suit you</Text>
+            <View style={styles.onboardingNote}>
+              <Text style={styles.onboardingNoteText}>
+                We will never tell you your body is wrong. Bloating, cravings, low energy — these are messages from your body, not failures.
+              </Text>
+              <Text style={styles.onboardingNoteSmall}>Feaste is not a weight loss app. It is a feel better app.</Text>
+            </View>
             <View style={styles.optionGrid}>
               {DIET_OPTIONS.map(({ key, emoji }) => {
                 const active = dietStyle === key;
@@ -237,7 +243,20 @@ const styles = StyleSheet.create({
   },
   stepSubtitle: {
     fontSize: TYPE.body, color: DARK_THEME.textSecondary,
-    marginBottom: 32, lineHeight: 20,
+    marginBottom: 16, lineHeight: 20,
+  },
+  onboardingNote: {
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 12, borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    padding: 14, marginBottom: 28,
+  },
+  onboardingNoteText: {
+    fontSize: TYPE.sm, color: DARK_THEME.textSecondary,
+    lineHeight: 20, marginBottom: 6,
+  },
+  onboardingNoteSmall: {
+    fontSize: TYPE.xs, color: DARK_THEME.textMuted, fontStyle: "italic",
   },
 
   // Diet grid

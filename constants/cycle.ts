@@ -220,6 +220,54 @@ export const PHASE_GROCERY_FOODS: Record<CyclePhase, Array<{ name: string; categ
   ],
 };
 
+// ── What to expect today — per phase ──────────────────────────────────────────
+export const PHASE_EXPECT: Record<CyclePhase, { bullets: string[]; bodyNote: string }> = {
+  menstrual: {
+    bullets: [
+      "Energy likely lower than usual — your body is working hard right now",
+      "Cravings for warmth and comfort foods are completely normal",
+      "Focus may feel foggy — gentle tasks over intense ones today",
+      "Rest is productive right now, not laziness",
+    ],
+    bodyNote:
+      "Your body · Some bloating is normal — prostaglandins cause water retention during your period. It passes. Your body is not broken.",
+  },
+  follicular: {
+    bullets: [
+      "Energy starting to rise — good time for bigger tasks and workouts",
+      "Mood likely lifting, social energy returning",
+      "Creativity and focus tend to peak this phase",
+    ],
+    bodyNote:
+      "Your body · Bloating typically eases off now — you may feel lighter and more comfortable in your body this week.",
+  },
+  ovulatory: {
+    bullets: [
+      "Energy and confidence at their highest point in your cycle",
+      "Best time for workouts, social plans, hard conversations",
+      "Appetite may decrease slightly — your body is efficient right now",
+    ],
+    bodyNote:
+      "Your body · You may feel at your physical best this phase. Some people notice mild mid-cycle cramping or spotting — completely normal.",
+  },
+  luteal: {
+    bullets: [
+      "Energy gradually dipping as progesterone rises",
+      "Cravings for carbs and comfort food are hormonal — not weakness",
+      "Mood may shift — more inward, less social energy is normal",
+    ],
+    bodyNote:
+      "Your body · Bloating and feeling heavier right now is hormonal water retention — not fat gain. Your body retains 1–3kg of water in this phase. It disappears when your period starts. Clothes feeling tighter is your hormones, not you.",
+  },
+};
+
+// ── Condition-specific body reassurance notes ──────────────────────────────────
+export const CONDITION_BODY_NOTES: Record<string, string> = {
+  PCOS: "PCOS can make bloating more pronounced — this is the condition, not your body failing you.",
+  Thyroid: "Thyroid conditions affect water retention — what you see in the mirror is not the full picture.",
+  Menopause: "Body changes during perimenopause are hormonal and normal — your body is not broken, it's changing.",
+};
+
 export const DEFAULT_VITAMINS = [
   {
     id: "1",

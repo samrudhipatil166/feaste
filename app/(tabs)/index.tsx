@@ -13,7 +13,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { ACCENT, DARK_THEME, TYPE } from "@/constants/theme";
 import { GlowCard } from "@/components/GlowCard";
 import { ProfileSheet } from "@/components/ProfileSheet";
-import { PHASE_INFO, PHASE_VITAMINS, PCOS_VITAMINS, PhaseVitamin } from "@/constants/cycle";
+import { PHASE_INFO, PHASE_VITAMINS, PCOS_VITAMINS, PHASE_EXPECT, CONDITION_BODY_NOTES, PhaseVitamin } from "@/constants/cycle";
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
 const BTN_TEXT  = "#412402";
@@ -141,6 +141,15 @@ export default function HomeScreen() {
   const macroColor = hasMeals ? accentColor : ZERO_NUM;
   const easyWins   = phase.easyWins.slice(0, 4);
 
+  const hasCycleTracking = !!profile.lastPeriodDate;
+  const phaseExpect      = PHASE_EXPECT[currentPhase];
+  const conditionNote    = (profile.conditions as string[])
+    .map((c) => CONDITION_BODY_NOTES[c])
+    .filter(Boolean)[0] ?? null;
+
+  const isOver   = totalCal > profile.calorieGoal;
+  const showEod  = hasMeals && hour >= 19 && todayLog.length >= 2;
+
   // ── Animated bars ──────────────────────────────────────────────────────────
   const calPct    = Math.min(totalCal / Math.max(profile.calorieGoal, 1), 1);
   const calWidth  = useSharedValue(0);
@@ -255,6 +264,37 @@ export default function HomeScreen() {
           </GlowCard>
         </Animated.View>
 
+        {/* ── What to expect today ── */}
+        <Animated.View entering={FadeInDown.delay(90).duration(400)}>
+          {!hasCycleTracking ? (
+            <Pressable
+              onPress={() => { setProfileSection("cycle"); setProfileVisible(true); }}
+              style={styles.expectPrompt}
+            >
+              <Text style={[styles.expectPromptText, { color: accentColor }]}>
+                set up cycle tracking to see what to expect today →
+              </Text>
+            </Pressable>
+          ) : (
+            <GlowCard style={styles.card} noPadding>
+              <View style={styles.expectInner}>
+                <Text style={styles.expectTitle}>WHAT TO EXPECT TODAY</Text>
+                {phaseExpect.bullets.map((b, i) => (
+                  <View key={i} style={styles.expectRow}>
+                    <Text style={[styles.expectBullet, { color: accentColor }]}>·</Text>
+                    <Text style={styles.expectText}>{b}</Text>
+                  </View>
+                ))}
+                <View style={styles.expectDivider} />
+                <Text style={styles.expectBodyNote}>{phaseExpect.bodyNote}</Text>
+                {conditionNote ? (
+                  <Text style={styles.expectCondition}>{conditionNote}</Text>
+                ) : null}
+              </View>
+            </GlowCard>
+          )}
+        </Animated.View>
+
         {/* ── Calorie card ── */}
         <Animated.View entering={FadeInDown.delay(120).duration(400)}>
           <Pressable onPress={() => setCalExpanded(!calExpanded)}>
@@ -274,6 +314,15 @@ export default function HomeScreen() {
                 <View style={styles.progressTrack}>
                   <Animated.View style={[styles.progressFill, { backgroundColor: accentColor }, calAnimStyle]} />
                 </View>
+
+                {/* Over-goal gentle message */}
+                {isOver && (
+                  <Text style={styles.overGoalMsg}>
+                    {currentPhase === "luteal"
+                      ? "cravings are stronger this phase — your body is asking for more fuel and that's valid"
+                      : "over your goal today — that's okay, one day doesn't define anything"}
+                  </Text>
+                )}
 
                 {/* 4 macro numbers */}
                 <View style={styles.macroNumRow}>
@@ -471,6 +520,38 @@ export default function HomeScreen() {
                 )}
               </Pressable>
             </Animated.View>
+
+            {/* End-of-day summary (after 7pm, ≥2 meals) */}
+            {showEod && (
+              <Animated.View entering={FadeInDown.delay(280).duration(400)}>
+                <GlowCard style={styles.card} noPadding>
+                  <View style={styles.eodInner}>
+                    <Text style={styles.eodTitle}>TODAY'S PICTURE</Text>
+                    <Text style={styles.eodLine}>
+                      {totalCal < profile.calorieGoal * 0.85
+                        ? `${totalCal} / ${profile.calorieGoal} kcal — make sure you eat enough today`
+                        : isOver
+                          ? `${totalCal} kcal logged — you fuelled well today`
+                          : `${totalCal} / ${profile.calorieGoal} kcal — nourished ✓`}
+                    </Text>
+                    <Text style={styles.eodLine}>
+                      {totalP >= profile.proteinGoal * 0.9
+                        ? `${totalP}g protein — great protein day`
+                        : `${totalP}g of ${profile.proteinGoal}g protein goal`}
+                    </Text>
+                    <Text style={styles.eodSummary}>
+                      {totalCal < profile.calorieGoal * 0.85
+                        ? "make sure you're eating enough — your body needs fuel, especially during your cycle"
+                        : isOver
+                          ? "your body knows what it needs — trust it"
+                          : totalP >= profile.proteinGoal * 0.9
+                            ? "great protein day — your hormones will thank you"
+                            : "tomorrow is a fresh start — check the Plan tab for easy phase wins"}
+                    </Text>
+                  </View>
+                </GlowCard>
+              </Animated.View>
+            )}
           </>
         )}
 
@@ -630,4 +711,28 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.20)", alignItems: "center", justifyContent: "center",
   },
   allTakenText: { fontSize: TYPE.sm, color: MUTED },
+
+  // What to expect today
+  expectPrompt: { marginBottom: 12, paddingVertical: 10, alignItems: "center" },
+  expectPromptText: { fontSize: TYPE.sm, fontWeight: "600" },
+  expectInner: { padding: 16 },
+  expectTitle: { fontSize: 9, color: MUTED, fontWeight: "700", letterSpacing: 1.2, marginBottom: 10 },
+  expectRow: { flexDirection: "row", gap: 8, marginBottom: 6 },
+  expectBullet: { fontSize: 16, lineHeight: 20, fontWeight: "700" },
+  expectText: { flex: 1, fontSize: TYPE.sm, color: SECONDARY, lineHeight: 20 },
+  expectDivider: { height: 1, backgroundColor: DIVIDER, marginVertical: 10 },
+  expectBodyNote: { fontSize: TYPE.sm, color: SECONDARY, lineHeight: 20, fontStyle: "italic" },
+  expectCondition: { fontSize: TYPE.xs, color: MUTED, lineHeight: 18, marginTop: 6, fontStyle: "italic" },
+
+  // Over-goal gentle message
+  overGoalMsg: {
+    fontSize: TYPE.xs, color: MUTED, fontStyle: "italic",
+    textAlign: "center", marginTop: 6, lineHeight: 17,
+  },
+
+  // End-of-day summary
+  eodInner: { padding: 16 },
+  eodTitle: { fontSize: 9, color: MUTED, fontWeight: "700", letterSpacing: 1.2, marginBottom: 10 },
+  eodLine: { fontSize: TYPE.sm, color: SECONDARY, marginBottom: 4 },
+  eodSummary: { fontSize: TYPE.sm, color: MUTED, fontStyle: "italic", marginTop: 6, lineHeight: 19 },
 });
